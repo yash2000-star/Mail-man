@@ -141,7 +141,7 @@ export default function Home() {
       query += ` ${searchString}`;
     }
 
-    const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=${encodeURIComponent(query)}`;
+    const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30&q=${encodeURIComponent(query)}`;
 
     // Knock on Google's door
     const response = await fetch(url, {
@@ -186,23 +186,151 @@ export default function Home() {
       setEmails(cleanEmails);
       setIsFetching(false);
 
-      // 2. AUTO-PILOT ENGAGE
-      for (const msg of cleanEmails) {
-        await classifyEmail(msg.id, msg.snippet); 
-        await extractTasksAndLabels(msg); 
-        
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+      // 2. BATCH AUTO-PILOT ENGAGE
+      const apiKey = localStorage.getItem("gemini_api_key");
+      if (apiKey) {
+        await classifyEmailsBatch(cleanEmails, apiKey);
+        await extractTasksAndLabelsBatch(cleanEmails, apiKey);
       }
     }
   };
 
+ // --- ⚡ UPGRADED SAFETY BATCH PROCESSING ---
+  
+  const classifyEmailsBatch = async (allEmails: any[]) => {
+    const apiKey = localStorage.getItem("gemini_api_key");
+    if (!apiKey) return;
+
+    // Split 30 emails into smaller chunks of 10 to avoid 429 errors
+    const chunks = [];
+    for (let i = 0; i < allEmails.length; i += 10) {
+      chunks.push(allEmails.slice(i, i + 10));
+    }
+
+    for (const chunk of chunks) {
+      try {
+        const payload = chunk.map(e => ({ id: e.id, sender: e.from, snippet: e.snippet }));
+        const response = await fetch("/api/classify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ emails: payload, apiKey }),
+        });
+        
+        if (response.status === 429) {
+          console.error("Rate limit hit, skipping this chunk...");
+          continue; 
+        }
+
+        const results = await response.json();
+        if (Array.isArray(results)) {
+          updateEmailStateWithAiData(results);
+        }
+        
+        // Wait 2 seconds between chunks to let the API "breathe"
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+      } catch (error) {
+        console.error("Batch chunk failed:", error);
+      }
+    }
+  };
+
+  // Helper to keep the code clean
+  const updateEmailStateWithAiData = (results: any[]) => {
+    setEmails((prev) => {
+      const updated = prev.map((email) => {
+        const match = results.find((r: any) => r.id === email.id);
+        return match ? { ...email, ...match } : email;
+      });
+      // Refresh reading pane if active
+      if (selectedEmail) {
+        const current = updated.find(e => e.id === selectedEmail.id);
+        if (current) setSelectedEmail(current);
+      }
+      return updated;
+    });
+  };
+
+  const extractTasksAndLabelsBatch = async (emailList: any[], apiKey: string) => {
+    try {
+      const response = await fetch("/api/ai/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          emails: emailList.map(e => ({ 
+            id: e.id, 
+            sender: e.from, 
+            content: `Subject: ${e.subject}\n\n${e.body.substring(0, 1000)}` 
+          })),
+          apiKey: apiKey,
+          customLabels: customLabels 
+        }),
+      });
+
+      if (!response.ok) {
+        console.error(`Batch Tasks API failed with status: ${response.status}`);
+        return;
+      }
+      
+      const results = await response.json();
+
+      if (Array.isArray(results)) {
+        // 1. Update emails with applied labels
+        setEmails((prevEmails) => {
+          const updatedEmails = prevEmails.map((email) => {
+            const result = results.find((r: any) => r.id === email.id);
+            return result ? { ...email, appliedLabels: result.appliedLabels } : email;
+          });
+
+          // Refresh selectedEmail if it was part of this batch
+          if (selectedEmail) {
+            const updatedSelected = updatedEmails.find(e => e.id === selectedEmail.id);
+            if (updatedSelected) {
+              setSelectedEmail(updatedSelected);
+            }
+          }
+          return updatedEmails;
+        });
+
+        // 2. Update Global Tasks
+        const allNewTasks: any[] = [];
+        results.forEach((result: any) => {
+          if (result.tasks && result.tasks.length > 0) {
+            result.tasks.forEach((task: any) => {
+              allNewTasks.push({
+                id: Math.random().toString(36).substr(2, 9),
+                emailId: result.id,
+                title: task.title,
+                date: task.date,
+                isUrgent: task.isUrgent,
+                isPastDue: task.isPastDue,
+                status: "active"
+              });
+            });
+          }
+        });
+        setGlobalTasks((prev) => [...prev, ...allNewTasks]);
+      }
+    } catch (error) {
+      console.error("Failed to extract batch tasks:", error);
+    }
+  };
+
   const classifyEmail = async (id: string, snippet: string) => {
+    // Keep this for individual refreshes if needed, but the main loop is gone.
+    const apiKey = localStorage.getItem("gemini_api_key");
+    if (!apiKey) return;
     try {
       const response = await fetch("/api/classify", {
         method: "POST",
-        body: JSON.stringify({ snippet }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          emails: [{ id, snippet, sender: "Unknown" }], 
+          apiKey 
+        }),
       });
-      const result = await response.json();
+      const results = await response.json();
+      const result = results?.[0];
 
       setEmails((prevEmails) => {
         const updatedEmails = prevEmails.map((email) =>
@@ -228,58 +356,65 @@ export default function Home() {
     }
   };
 
-  const extractTasksAndLabels = async (email: any) => {
-    const apiKey = localStorage.getItem("gemini_api_key");
-    if (!apiKey) return;
-
-    try {
-      const senderName = email.from.split("<")[0].replace(/"/g, "").trim();
-      
-      const response = await fetch("/api/ai/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          emailBody: `Subject: ${email.subject}\n\n${email.body.substring(0, 1000)}`, // Send subject + up to 1000 chars of body
-          sender: senderName,
-          apiKey: apiKey,
-          customLabels: customLabels 
-        }),
-      });
-
-      if (!response.ok) {
-        console.error(`Tasks API failed with status: ${response.status}`);
-        return; // Stop here before it tries to parse HTML!
-      }
-      
-      const result = await response.json();
-
-      // 1. Save Tasks to the Global Dashboard
-      if (result.tasks && result.tasks.length > 0) {
-        setGlobalTasks((prevTasks) => {
-          const newTasks = result.tasks.map((task: any) => ({
-            id: Math.random().toString(36).substr(2, 9),
-            emailId: email.id,
-            title: task.title,
-            date: task.date,
-            isUrgent: task.isUrgent,
-            isPastDue: task.isPastDue,
-            status: "active"
-          }));
-          return [...prevTasks, ...newTasks];
+    const extractTasksAndLabels = async (email: any) => {
+      const apiKey = localStorage.getItem("gemini_api_key");
+      if (!apiKey) return;
+  
+      try {
+        const senderName = email.from.split("<")[0].replace(/"/g, "").trim();
+  
+        const response = await fetch("/api/ai/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            emails: [{
+              id: email.id,
+              sender: senderName,
+              content: `Subject: ${email.subject}\n\n${email.body.substring(0, 1000)}`
+            }],
+            apiKey: apiKey,
+            customLabels: customLabels
+          }),
         });
+  
+        if (!response.ok) {
+          console.error(`Tasks API failed with status: ${response.status}`);
+          return; // Stop here before it tries to parse HTML!
+        }
+  
+        const results = await response.json();
+        const result = results?.[0];
+  
+        if (!result) return;
+  
+        // 1. Save Tasks to the Global Dashboard
+        if (result.tasks && result.tasks.length > 0) {
+          setGlobalTasks((prevTasks) => {
+            const newTasks = result.tasks.map((task: any) => ({
+              id: Math.random().toString(36).substr(2, 9),
+              emailId: email.id,
+              title: task.title,
+              date: task.date,
+              isUrgent: task.isUrgent,
+              isPastDue: task.isPastDue,
+              status: "active"
+            }));
+            return [...prevTasks, ...newTasks];
+          });
+        }
+  
+        // 2. Add labels quietly to the email
+        if (result.appliedLabels && result.appliedLabels.length > 0) {
+          setEmails((prevEmails) =>
+            prevEmails.map((e) => e.id === email.id ? { ...e, appliedLabels: result.appliedLabels } : e)
+          );
+        }
+  
+      } catch (error) {
+        console.error("Failed to extract tasks:", error);
       }
-
-      // 2. Add labels quietly to the email
-      if (result.appliedLabels && result.appliedLabels.length > 0) {
-        setEmails((prevEmails) => 
-          prevEmails.map((e) => e.id === email.id ? { ...e, appliedLabels: result.appliedLabels } : e)
-        );
-      }
-
-    } catch (error) {
-      console.error("Failed to extract tasks:", error);
-    }
-  };
+    };
+  
 
   // Quick action
   const handleEmailAction = async (id: string, action: string) => {

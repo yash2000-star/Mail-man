@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { 
   ChevronsRight, Reply, Forward, Tag, Star, Archive, 
-  Trash2, MoreHorizontal, Sparkles, ThumbsUp, ThumbsDown, ChevronDown 
+  Trash2, MoreHorizontal, Sparkles, ThumbsUp, ThumbsDown, ChevronDown, RefreshCw 
 } from "lucide-react";
 
 interface ReadingPaneProps {
@@ -139,10 +139,17 @@ export default function ReadingPane({
                 <h1 className="text-2xl font-bold text-white leading-tight">
                   {selectedEmail.subject || "(No Subject)"}
                 </h1>
-                {selectedEmail.category && (
+                {selectedEmail.category ? (
                   <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${getBadgeStyle(selectedEmail.category)}`}>
                     {selectedEmail.category}
                   </span>
+                ) : (
+                  <button 
+                    onClick={() => /* Add a single-email scan trigger here */ null}
+                    className="text-[10px] text-zinc-500 hover:text-purple-400 flex items-center gap-1 transition-colors"
+                  >
+                    <RefreshCw size={10} /> Click to AI Scan
+                  </button>
                 )}
               </div>
 
@@ -168,27 +175,31 @@ export default function ReadingPane({
                 </div>
               </div>
 
-              {/* AI Summary Block */}
-              {selectedEmail.summary && (
-                <div className="bg-blue-500/5 border border-blue-500/10 rounded-2xl p-5 mb-8">
+              {/* AI Summary Block - Now with a 'Thinking' fallback */}
+              {selectedEmail.summary ? (
+                <div className="bg-blue-500/5 border border-blue-500/10 rounded-2xl p-5 mb-8 animate-in fade-in duration-500">
                   <div className="flex justify-between items-center mb-3">
                     <h4 className="text-sm font-bold text-blue-400 flex items-center gap-2">
                       <Sparkles size={16} /> Summary
                     </h4>
-                    <div className="flex gap-3">
-                      <ThumbsUp size={14} className="text-blue-400 hover:text-blue-300 cursor-pointer transition" />
-                      <ThumbsDown size={14} className="text-blue-400 hover:text-blue-300 cursor-pointer transition" />
-                    </div>
                   </div>
                   <p className="text-sm text-zinc-300 leading-relaxed">
                     {selectedEmail.summary}
                   </p>
                 </div>
+              ) : (
+                /* Optional: Show a subtle skeleton while batching is in progress */
+                <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-2xl p-5 mb-8 border-dashed">
+                  <p className="text-xs text-zinc-500 animate-pulse flex items-center gap-2">
+                    <RefreshCw size={12} className="animate-spin" /> 
+                    Mail-Man is summarizing this batch...
+                  </p>
+                </div>
               )}
 
               {/* AI Smart Draft Block */}
-              {selectedEmail.requires_reply && selectedEmail.draft_reply && (
-                <div className="bg-purple-500/5 border border-purple-500/20 rounded-2xl p-5 mb-8">
+              {selectedEmail.draft_reply && (
+                <div className="bg-purple-500/5 border border-purple-500/20 rounded-2xl p-5 mb-8 animate-in slide-in-from-bottom-2">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <span className="text-lg">✍️</span>
