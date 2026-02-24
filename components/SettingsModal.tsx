@@ -6,26 +6,31 @@ import { X, Key, Check, ShieldAlert } from "lucide-react";
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialKeys: { gemini: string; openai: string; anthropic: string };
+  onSaveDb: (keys: any) => Promise<void>;
 }
 
-export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const [apiKey, setApiKey] = useState("");
+export default function SettingsModal({ isOpen, onClose, initialKeys, onSaveDb }: SettingsModalProps) {
+  const [geminiKey, setGeminiKey] = useState("");
+  const [openAiKey, setOpenAiKey] = useState("");
+  const [anthropicKey, setAnthropicKey] = useState("");
   const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      const storedKey = localStorage.getItem("gemini_api_key");
-      if (storedKey) setApiKey(storedKey);
+      setGeminiKey(initialKeys?.gemini || "");
+      setOpenAiKey(initialKeys?.openai || "");
+      setAnthropicKey(initialKeys?.anthropic || "");
     }
-  }, [isOpen]);
+  }, [isOpen, initialKeys]);
 
-  const handleSave = () => {
-    if (apiKey.trim() === "") {
-      localStorage.removeItem("gemini_api_key"); 
-    } else {
-      localStorage.setItem("gemini_api_key", apiKey.trim()); 
-    }
-    
+  const handleSave = async () => {
+    await onSaveDb({
+      geminiApiKey: geminiKey.trim(),
+      openAiApiKey: openAiKey.trim(),
+      anthropicApiKey: anthropicKey.trim()
+    });
+
     setIsSaved(true);
     setTimeout(() => {
       setIsSaved(false);
@@ -36,55 +41,81 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-        
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+
         {/* Header */}
-        <div className="px-5 py-4 border-b border-zinc-800/80 flex justify-between items-center bg-zinc-900/50">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <Key size={18} className="text-purple-400" />
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-[17px] font-extrabold text-black flex items-center gap-2">
+            <Key size={18} className="text-[#2ca2f6]" />
             AI Settings
           </h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white transition bg-zinc-800/50 hover:bg-zinc-700 h-8 w-8 rounded-full flex items-center justify-center">
-            <X size={16} />
+          <button onClick={onClose} className="text-gray-400 hover:text-black transition">
+            <X size={20} />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-6 space-y-6">
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-zinc-300">Google Gemini API Key</label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="AIzaSy..."
-              className="w-full bg-zinc-900 border border-zinc-700 text-white px-4 py-3 rounded-xl outline-none focus:border-purple-500 transition-colors font-mono text-sm shadow-inner"
-            />
+        {/* Form Body */}
+        <div className="space-y-5">
+          <div className="space-y-4">
+
+            <div>
+              <label className="block text-[13px] font-bold text-gray-500 mb-1.5 ml-1">Google Gemini API Key</label>
+              <input
+                type="password"
+                value={geminiKey}
+                onChange={(e) => setGeminiKey(e.target.value)}
+                placeholder="AIzaSy..."
+                className="w-full bg-[#f4f6f8] border border-transparent text-black px-4 py-3 rounded-2xl outline-none focus:border-blue-300 transition-colors font-mono text-[13px] shadow-sm placeholder-gray-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[13px] font-bold text-gray-500 mb-1.5 ml-1">OpenAI API Key (ChatGPT)</label>
+              <input
+                type="password"
+                value={openAiKey}
+                onChange={(e) => setOpenAiKey(e.target.value)}
+                placeholder="sk-..."
+                className="w-full bg-[#f4f6f8] border border-transparent text-black px-4 py-3 rounded-2xl outline-none focus:border-blue-300 transition-colors font-mono text-[13px] shadow-sm placeholder-gray-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[13px] font-bold text-gray-500 mb-1.5 ml-1">Anthropic API Key (Claude)</label>
+              <input
+                type="password"
+                value={anthropicKey}
+                onChange={(e) => setAnthropicKey(e.target.value)}
+                placeholder="sk-ant-..."
+                className="w-full bg-[#f4f6f8] border border-transparent text-black px-4 py-3 rounded-2xl outline-none focus:border-blue-300 transition-colors font-mono text-[13px] shadow-sm placeholder-gray-400"
+              />
+            </div>
+
           </div>
 
-          <div className="bg-purple-500/10 border border-purple-500/20 p-4 rounded-xl flex gap-3 text-purple-200/80 text-xs leading-relaxed">
-            <ShieldAlert size={16} className="shrink-0 text-purple-400 mt-0.5" />
+          <div className="bg-purple-500/10 border border-purple-500/20 p-4 rounded-2xl flex gap-3 text-purple-700 text-[13px] leading-relaxed mt-2">
+            <ShieldAlert size={16} className="shrink-0 text-purple-600 mt-0.5" />
             <p>
-              <strong>Your key is stored locally.</strong> We never send your API key to our servers. It is securely saved in your browser's local storage and sent directly to Google when you use AI features.
+              <strong>Your key is stored securely in your database.</strong> We save your API key encrypted in MongoDB and inject it only into your secure serverless functions when you use AI features.
             </p>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-zinc-800/80 bg-zinc-900/30 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-white transition">
+        {/* Footer Actions */}
+        <div className="flex items-center justify-end gap-3 pt-6">
+          <button onClick={onClose} className="text-gray-500 font-bold text-[15px] hover:text-black transition px-4 py-2">
             Cancel
           </button>
-          <button 
+          <button
             onClick={handleSave}
             disabled={isSaved}
-            className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold rounded-xl transition shadow-lg disabled:bg-emerald-600 flex items-center gap-2"
+            className="bg-[#8ecbfb] hover:bg-[#6abcf8] disabled:bg-[#43b016] disabled:opacity-100 text-white font-extrabold text-[15px] px-7 py-2.5 rounded-full transition-all flex items-center justify-center gap-2 min-w-[120px]"
           >
-            {isSaved ? <><Check size={16} /> Saved</> : "Save Key"}
+            {isSaved ? <><Check size={16} className="stroke-[3]" /> Saved</> : "Save Keys"}
           </button>
         </div>
-        
+
       </div>
     </div>
   );

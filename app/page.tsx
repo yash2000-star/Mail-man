@@ -11,7 +11,7 @@ import SmartLabelModal from "@/components/SmartLabelModal";
 import ToDoDashboard from "@/components/ToDoDashboard";
 
 import { signIn, useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Sparkles,
   Search,
@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 
 export default function Home() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [emails, setEmails] = useState<any[]>([]);
   const [isFetching, setIsFetching] = useState(false);
 
@@ -43,8 +43,12 @@ export default function Home() {
   const [globalTasks, setGlobalTasks] = useState<any[]>([]);
   const [customLabels, setCustomLabels] = useState<any[]>([]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [geminiApiKey, setGeminiApiKey] = useState("");
+  const [openAiApiKey, setOpenAiApiKey] = useState("");
+  const [anthropicApiKey, setAnthropicApiKey] = useState("");
+  const [isScanningTasks, setIsScanningTasks] = useState(false);
 
-  //Find a specific header from the list
+  // Find a specific header from the list
   const getHeader = (headers: any[], name: string) => {
     if (!headers) return "";
     const header = headers.find(
@@ -124,77 +128,109 @@ export default function Home() {
     if (!(session as any)?.accessToken) return;
     setIsFetching(true);
 
-    let query = "in:inbox";
-    if (mailboxToFetch === "Starred") query = "is:starred";
-    if (mailboxToFetch === "Sent") query = "in:sent";
-    if (mailboxToFetch === "Draft") query = "is:draft";
-    if (mailboxToFetch === "Spam") query = "in:spam";
-    if (mailboxToFetch === "Trash") query = "in:trash";
-    if (mailboxToFetch === "Conversation History")
-      query = 'label:"Conversation History"';
-    if (mailboxToFetch === "GMass Auto Followup")
-      query = 'label:"GMass Auto Followup"';
-    if (mailboxToFetch === "GMass Reports") query = 'label:"GMass Reports"';
-    if (mailboxToFetch === "GMass Scheduled") query = 'label:"GMass Scheduled"';
+    try {
+      let query = "in:inbox";
+      if (mailboxToFetch === "Starred") query = "is:starred";
+      if (mailboxToFetch === "Sent") query = "in:sent";
+      if (mailboxToFetch === "Draft") query = "is:draft";
+      if (mailboxToFetch === "Spam") query = "in:spam";
+      if (mailboxToFetch === "Trash") query = "in:trash";
+      if (mailboxToFetch === "Conversation History")
+        query = 'label:"Conversation History"';
+      if (mailboxToFetch === "GMass Auto Followup")
+        query = 'label:"GMass Auto Followup"';
+      if (mailboxToFetch === "GMass Reports") query = 'label:"GMass Reports"';
+      if (mailboxToFetch === "GMass Scheduled") query = 'label:"GMass Scheduled"';
 
-    // GLOBAL SEARCH ENGINe
-    if (searchString.trim() !== "") {
-      query += ` ${searchString}`;
-    }
-
-    const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30&q=${encodeURIComponent(query)}`;
-
-    // Knock on Google's door
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${(session as any).accessToken}` },
-    });
-
-    const data = await response.json();
-
-    if (data.messages) {
-      const detailedEmails = await Promise.all(
-        data.messages.map(async (msg: any) => {
-          const res = await fetch(
-            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
-            {
-              headers: {
-                Authorization: `Bearer ${(session as any).accessToken}`,
-              },
-            },
-          );
-          return await res.json();
-        }),
-      );
-
-      const cleanEmails = detailedEmails
-        .filter((msg: any) => msg && msg.payload && msg.payload.headers)
-        .map((msg: any) => ({
-          id: msg.id,
-          snippet: msg.snippet,
-          subject: getHeader(msg.payload.headers, "Subject"),
-          from: getHeader(msg.payload.headers, "From").split("<")[0].trim(),
-          date: getHeader(msg.payload.headers, "Date"),
-          body: getEmailBody(msg.payload),
-          isUnread: msg.labelIds?.includes("UNREAD") || false,
-          isStarred: msg.labelIds?.includes("STARRED") || false,
-          to: getHeader(msg.payload.headers, "To"),
-          cc: getHeader(msg.payload.headers, "Cc"),
-          hasAttachment:
-            msg.payload.parts?.some(
-              (part: any) => part.filename && part.filename.length > 0,
-            ) || false,
-        }));
-
-      // 1. Show emails on screen immediately
-      setEmails(cleanEmails);
-      setIsFetching(false);
-
-      // 2. BATCH AUTO-PILOT ENGAGE
-      const apiKey = localStorage.getItem("gemini_api_key");
-      if (apiKey) {
-        await classifyEmailsBatch(cleanEmails, apiKey);
-        await extractTasksAndLabelsBatch(cleanEmails, apiKey);
+      // GLOBAL SEARCH ENGINe
+      if (searchString.trim() !== "") {
+        query += ` ${searchString}`;
       }
+
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30&q=${encodeURIComponent(query)}`;
+
+      // Knock on Google's door
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${(session as any).accessToken}` },
+      });
+
+      if (!response.ok) {
+        console.error("Failed to fetch messages. Status:", response.status);
+        setIsFetching(false);
+        return;
+      }
+
+      const data = await response.json();
+
+      if (data.messages && data.messages.length > 0) {
+        const detailedEmails = await Promise.all(
+          data.messages.map(async (msg: any) => {
+            try {
+              const res = await fetch(
+                `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${(session as any).accessToken}`,
+                  },
+                },
+              );
+              if (!res.ok) return null;
+              return await res.json();
+            } catch (err) {
+              console.error("Error fetching message detail:", err);
+              return null;
+            }
+          }),
+        );
+
+        const cleanEmails = detailedEmails
+          .filter((msg: any) => msg && msg.payload && msg.payload.headers)
+          .map((msg: any) => ({
+            id: msg.id,
+            snippet: msg.snippet,
+            subject: getHeader(msg.payload.headers, "Subject"),
+            from: getHeader(msg.payload.headers, "From").split("<")[0].trim(),
+            date: getHeader(msg.payload.headers, "Date"),
+            body: getEmailBody(msg.payload),
+            isUnread: msg.labelIds?.includes("UNREAD") || false,
+            isStarred: msg.labelIds?.includes("STARRED") || false,
+            to: getHeader(msg.payload.headers, "To"),
+            cc: getHeader(msg.payload.headers, "Cc"),
+            hasAttachment:
+              msg.payload.parts?.some(
+                (part: any) => part.filename && part.filename.length > 0,
+              ) || false,
+          }));
+
+        // 1. Show emails on screen immediately
+        setEmails(cleanEmails);
+        setIsFetching(false);
+
+        // Immediately cache the fetched inbox emails so the NEXT time the user logs in, it loads instantly!
+        try {
+          if (mailboxToFetch === "Inbox") {
+            localStorage.setItem("ezee_mail_cache_Inbox", JSON.stringify(cleanEmails));
+          }
+        } catch (e) {
+          console.error("Could not cache to local storage", e);
+        }
+
+        // 2. BATCH AUTO-PILOT ENGAGE
+        // Note: The API key is now stored in state (fetched from MongoDB on load!)
+        if (geminiApiKey) {
+          await classifyEmailsBatch(cleanEmails, geminiApiKey);
+          await extractTasksAndLabelsBatch(cleanEmails, geminiApiKey);
+        }
+      } else {
+        setIsFetching(false);
+        // Only clear emails if we are sure there are absolutely 0 emails returned
+        if (searchString || mailboxToFetch !== "Inbox") {
+          setEmails([]);
+        }
+      }
+    } catch (error) {
+      console.error("Error in fetchEmails:", error);
+      setIsFetching(false);
     }
   };
 
@@ -203,7 +239,8 @@ export default function Home() {
   const classifyEmailsBatch = async (allEmails: any[], apiKey: string) => {
     if (!apiKey) return;
 
-    // Split 30 emails into smaller chunks of 10 to avoid 429 errors
+    // The backend now intelligently filters out already classified emails!
+    // We just pass the entire batch directly to the secure route.
     const chunks = [];
     for (let i = 0; i < allEmails.length; i += 10) {
       chunks.push(allEmails.slice(i, i + 10));
@@ -225,6 +262,7 @@ export default function Home() {
 
         const results = await response.json();
         if (Array.isArray(results)) {
+          // Immediately show the new summaries (and the instantly returned cached DB summaries)
           updateEmailStateWithAiData(results);
         }
 
@@ -294,24 +332,16 @@ export default function Home() {
           return updatedEmails;
         });
 
-        // 2. Update Global Tasks
-        const allNewTasks: any[] = [];
-        results.forEach((result: any) => {
-          if (result.tasks && result.tasks.length > 0) {
-            result.tasks.forEach((task: any) => {
-              allNewTasks.push({
-                id: Math.random().toString(36).substr(2, 9),
-                emailId: result.id,
-                title: task.title,
-                date: task.date,
-                isUrgent: task.isUrgent,
-                isPastDue: task.isPastDue,
-                status: "active"
-              });
-            });
+        // 2. Update Global Tasks - Sync directly from MongoDB to capture the real Database IDs and skip duplicates!
+        try {
+          const userRes = await fetch('/api/user');
+          if (userRes.ok) {
+            const userData = await userRes.json();
+            if (userData.globalTasks) setGlobalTasks(userData.globalTasks);
           }
-        });
-        setGlobalTasks((prev) => [...prev, ...allNewTasks]);
+        } catch (e) {
+          console.error("Failed to sync DB tasks", e);
+        }
       }
     } catch (error) {
       console.error("Failed to extract batch tasks:", error);
@@ -320,15 +350,14 @@ export default function Home() {
 
   const classifyEmail = async (id: string, snippet: string) => {
     // Keep this for individual refreshes if needed, but the main loop is gone.
-    const apiKey = localStorage.getItem("gemini_api_key");
-    if (!apiKey) return;
+    if (!geminiApiKey) return;
     try {
       const response = await fetch("/api/classify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           emails: [{ id, snippet, sender: "Unknown" }],
-          apiKey
+          apiKey: geminiApiKey
         }),
       });
       const results = await response.json();
@@ -389,20 +418,15 @@ export default function Home() {
 
       if (!result) return;
 
-      // 1. Save Tasks to the Global Dashboard
-      if (result.tasks && result.tasks.length > 0) {
-        setGlobalTasks((prevTasks) => {
-          const newTasks = result.tasks.map((task: any) => ({
-            id: Math.random().toString(36).substr(2, 9),
-            emailId: email.id,
-            title: task.title,
-            date: task.date,
-            isUrgent: task.isUrgent,
-            isPastDue: task.isPastDue,
-            status: "active"
-          }));
-          return [...prevTasks, ...newTasks];
-        });
+      // 1. Sync Global Tasks directly from MongoDB to capture the real Database IDs!
+      try {
+        const userRes = await fetch('/api/user');
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          if (userData.globalTasks) setGlobalTasks(userData.globalTasks);
+        }
+      } catch (e) {
+        console.error("Failed to sync DB tasks", e);
       }
 
       // 2. Add labels quietly to the email
@@ -457,7 +481,7 @@ export default function Home() {
         setDraftData({
           to: senderEmail,
           subject: selectedEmail.subject?.startsWith("Re:") ? selectedEmail.subject : `Re: ${selectedEmail.subject}`,
-          body: `\n\n\n\n--- On ${selectedEmail.date}, ${selectedEmail.from} wrote:\n> ${selectedEmail.body.replace(/<[^>]+>/g, '')}`, // Basic text fallback
+          body: "",
         });
         setIsComposeOpen(true);
       }
@@ -467,7 +491,7 @@ export default function Home() {
         setDraftData({
           to: "",
           subject: selectedEmail.subject?.startsWith("Fwd:") ? selectedEmail.subject : `Fwd: ${selectedEmail.subject}`,
-          body: `\n\n\n\n--- Forwarded message ---\nFrom: ${selectedEmail.from}\nDate: ${selectedEmail.date}\nSubject: ${selectedEmail.subject}\n\n${selectedEmail.body.replace(/<[^>]+>/g, '')}`, // Basic text fallback
+          body: "",
         });
         setIsComposeOpen(true);
       }
@@ -490,8 +514,7 @@ export default function Home() {
 
   // THE AI AUTO-REPLY ENGINE
   const handleAiReply = async (email: any) => {
-    const apiKey = localStorage.getItem("gemini_api_key");
-    if (!apiKey) {
+    if (!geminiApiKey) {
       alert(
         "⚠️ Please click the Gear icon in the bottom left to add your Gemini API Key first!",
       );
@@ -509,7 +532,7 @@ export default function Home() {
         body: JSON.stringify({
           emailBody: email.body,
           senderName,
-          apiKey: apiKey,
+          apiKey: geminiApiKey,
         }),
       });
 
@@ -533,18 +556,38 @@ export default function Home() {
   };
 
   // --- TO-DO DASHBOARD HANDLERS ---
-  const handleToggleTask = (taskId: string) => {
-    setGlobalTasks((prev) =>
-      prev.map((task) =>
-        task.id === taskId
-          ? { ...task, status: task.status === "active" ? "done" : "active" }
-          : task
-      )
+  const handleToggleTask = async (taskId: string) => {
+    const updatedTasks = globalTasks.map((task) =>
+      task.id === taskId
+        ? { ...task, status: task.status === "active" ? "done" : "active" }
+        : task
     );
+    setGlobalTasks(updatedTasks);
+
+    try {
+      await fetch('/api/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ globalTasks: updatedTasks }),
+      });
+    } catch (e) {
+      console.error("Failed to sync task toggle", e);
+    }
   };
 
-  const handleDeleteTask = (taskId: string) => {
-    setGlobalTasks((prev) => prev.filter((task) => task.id !== taskId));
+  const handleDeleteTask = async (taskId: string) => {
+    const updatedTasks = globalTasks.filter((task) => task.id !== taskId);
+    setGlobalTasks(updatedTasks);
+
+    try {
+      await fetch('/api/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ globalTasks: updatedTasks }),
+      });
+    } catch (e) {
+      console.error("Failed to sync task deletion", e);
+    }
   };
 
   const handleViewEmail = (emailId: string) => {
@@ -556,11 +599,21 @@ export default function Home() {
   };
 
   // --- NEW: SMART LABEL HANDLERS ---
-  const handleDeleteCustomLabel = (labelName: string) => {
+  const handleDeleteCustomLabel = async (labelName: string) => {
     // 1. Remove the label from our array
-    setCustomLabels((prev) => prev.filter((label) => label.name !== labelName));
+    const updatedLabels = customLabels.filter((label) => label.name !== labelName);
+    setCustomLabels(updatedLabels);
 
-    // 2. If the user was currently looking at that label's folder, kick them back to Inbox
+    // 2. Sync deletion to MongoDB
+    try {
+      await fetch('/api/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customLabels: updatedLabels }),
+      });
+    } catch (e) { console.error("Could not sync label deletion", e); }
+
+    // 3. Kick to Inbox if looking at the deleted label
     if (activeMailbox === labelName) {
       setActiveMailbox("Inbox");
       fetchEmails("Inbox");
@@ -568,16 +621,49 @@ export default function Home() {
   };
   // -------------------------------------
 
+  const initializationRef = useRef(false);
+
   useEffect(() => {
-    if ((session as any)?.accessToken && emails.length === 0 && !isFetching) {
-      fetchEmails();
-    }
-  }, [session, emails.length]);
+    const initializeApp = async () => {
+      if ((session as any)?.accessToken && !initializationRef.current) {
+        initializationRef.current = true;
+
+        // 1. Fetch User Data from MongoDB First!
+        try {
+          const res = await fetch('/api/user');
+          if (res.ok) {
+            const userData = await res.json();
+            if (userData.geminiApiKey) setGeminiApiKey(userData.geminiApiKey);
+            if (userData.openAiApiKey) setOpenAiApiKey(userData.openAiApiKey);
+            if (userData.anthropicApiKey) setAnthropicApiKey(userData.anthropicApiKey);
+            if (userData.customLabels) setCustomLabels(userData.customLabels);
+            if (userData.globalTasks) setGlobalTasks(userData.globalTasks);
+          }
+        } catch (e) {
+          console.error("Error fetching user profile:", e);
+        }
+
+        // 2. Load the super-fast UI cached emails
+        const cached = localStorage.getItem("ezee_mail_cache_Inbox");
+        if (cached) {
+          try {
+            setEmails(JSON.parse(cached));
+          } catch (e) {
+            console.error("Failed to parse cached emails", e);
+          }
+        }
+
+        // 3. Perform a silent background fetch to sync any new emails
+        fetchEmails();
+      }
+    };
+    initializeApp();
+  }, [session]);
 
   if (session) {
     return (
       //  Locks the screen height
-      <div className="flex h-screen bg-[#f8f9fa] text-gray-900 font-sans overflow-hidden selection:bg-blue-500/20 relative">
+      <div className="flex h-screen bg-[#f8f9fa] dark:bg-slate-950 text-gray-900 dark:text-slate-100 font-sans overflow-hidden selection:bg-blue-500/20 relative">
 
         <Sidebar
           isCollapsed={isSidebarCollapsed}
@@ -594,6 +680,7 @@ export default function Home() {
           onOpenSmartLabelModal={() => setIsSmartLabelModalOpen(true)}
           customLabels={customLabels}
           onDeleteCustomLabel={handleDeleteCustomLabel} // <-- THIS WIRE MAKES IT WORK!
+          unreadCount={activeMailbox === "Inbox" ? emails.filter((e) => e.isUnread).length : 0}
         />
 
         <div className="flex-1 flex overflow-hidden">
@@ -603,6 +690,25 @@ export default function Home() {
               onToggleTask={handleToggleTask}
               onDeleteTask={handleDeleteTask}
               onViewEmail={handleViewEmail}
+              isScanning={isScanningTasks}
+              onScan={async () => {
+                if (!geminiApiKey) {
+                  alert("⚠️ Please add your Gemini API Key in Settings first.");
+                  return;
+                }
+                if (emails.length === 0) {
+                  alert("Inbox is currently empty. Fetching emails might still be in progress.");
+                  return;
+                }
+
+                setIsScanningTasks(true);
+                try {
+                  // Pass the currently loaded emails into the batch processor
+                  await extractTasksAndLabelsBatch(emails.slice(0, 30), geminiApiKey);
+                } finally {
+                  setIsScanningTasks(false);
+                }
+              }}
             />
           ) : (
             <>
@@ -613,11 +719,12 @@ export default function Home() {
                 onSelect={setSelectedEmail}
                 onRefresh={fetchEmails}
                 isSyncing={isFetching}
-                onOpenAi={() => setIsAiChatOpen(true)}
+                onOpenAi={() => setIsAiChatOpen(!isAiChatOpen)}
                 onAction={handleEmailAction}
                 onSearch={(searchWord) => fetchEmails(activeMailbox, searchWord)}
                 customLabels={customLabels}
                 onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                isSidebarCollapsed={isSidebarCollapsed}
               />
 
               {/* The Reading Pane */}
@@ -632,12 +739,35 @@ export default function Home() {
               />
             </>
           )}
+
+          {/* AI Chat Sidebar Integration */}
+          <AiChat
+            isOpen={isAiChatOpen}
+            onClose={() => setIsAiChatOpen(false)}
+            emails={emails}
+            apiKeys={{ gemini: geminiApiKey, openai: openAiApiKey, anthropic: anthropicApiKey }}
+          />
         </div>
 
         {/* The Settings Modal */}
         <SettingsModal
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
+          initialKeys={{ gemini: geminiApiKey, openai: openAiApiKey, anthropic: anthropicApiKey }}
+          onSaveDb={async (keys) => {
+            setGeminiApiKey(keys.geminiApiKey);
+            setOpenAiApiKey(keys.openAiApiKey);
+            setAnthropicApiKey(keys.anthropicApiKey);
+            try {
+              await fetch('/api/user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(keys),
+              });
+            } catch (e) {
+              console.error("Failed to sync API keys", e);
+            }
+          }}
         />
 
         {isComposeOpen && (
@@ -653,35 +783,45 @@ export default function Home() {
           />
         )}
 
-        {!isAiChatOpen && (
-          <button
-            onClick={() => setIsAiChatOpen(true)}
-            className="fixed bottom-6 right-6 z-50 p-4 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-lg transition-all duration-300 hover:scale-105 group border border-blue-400/30"
-            title="Ask AI"
-          >
-            <Sparkles
-              size={24}
-              className="group-hover:animate-pulse text-white"
-            />
-          </button>
-        )}
-
-        <AiChat
-          isOpen={isAiChatOpen}
-          onClose={() => setIsAiChatOpen(false)}
-          emails={emails}
-        />
-
-        {/* Smart Label Modal */}
         <SmartLabelModal
           isOpen={isSmartLabelModalOpen}
           onClose={() => setIsSmartLabelModalOpen(false)}
-          onAddLabel={(newLabel) => {
-            // Save the custom label to our state! The background AI will now use this rule.
-            setCustomLabels((prev) => [...prev, newLabel]);
-            alert(`Success! "${newLabel.name}" saved. Mail-Man will now scan incoming emails against this rule.`);
+          onAddLabel={async (newLabel) => {
+            const updatedLabels = [...customLabels, newLabel];
+            setCustomLabels(updatedLabels);
+
+            try {
+              await fetch('/api/user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ customLabels: updatedLabels }),
+              });
+
+              if (newLabel.applyRetroactively && geminiApiKey && emails.length > 0) {
+                const emailsToProcess = emails.slice(0, 50);
+                alert(`Success! "${newLabel.name}" saved. Filo is now retroactively scanning your last 50 emails...`);
+                // Use the existing batch processor to scan the slice
+                extractTasksAndLabelsBatch(emailsToProcess, geminiApiKey);
+              } else {
+                alert(`Success! "${newLabel.name}" safely stored. Filo will now automatically scan new incoming emails.`);
+              }
+            } catch (e) {
+              console.error("Failed to sync new label", e);
+            }
           }}
         />
+      </div>
+    );
+  }
+
+  if (status === "loading") {
+    // Show a loading screen or absolutely nothing while next-auth decrypts the session cookie
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#f8f9fa]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+          <p className="text-gray-500 font-medium text-sm animate-pulse">Loading workspace...</p>
+        </div>
       </div>
     );
   }

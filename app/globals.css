@@ -1,8 +1,17 @@
 @import "tailwindcss";
 
+/* ==========================================
+   TAILWIND v4: Enable class-based dark mode
+   This tells Tailwind to activate all dark:
+   variants when the <html> element has the
+   "dark" class applied.
+   ========================================== */
+@variant dark (&:where(.dark, .dark *));
+
+
 :root {
-  --background: #f8f9fa; /* Very light gray page background */
-  --foreground: #202124; /* Google style dark gray for text */
+  --background: #f8f9fa;
+  --foreground: #202124;
 }
 
 @theme inline {
@@ -12,19 +21,19 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* Force Light Theme ALWAYS for Filo Mail Replica */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #f8f9fa; 
-    --foreground: #202124;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Inter', 'Segoe UI', Arial, sans-serif; /* Clean modern font */
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
+
+/* Dark mode global override */
+html.dark body {
+  background: #0f172a;
+  color: #f1f5f9;
+}
+
 
 /* --- UTILITY CLASSES --- */
 /* Completely hides the scrollbar visually, but still allows scrolling! */
@@ -33,6 +42,24 @@ body {
 }
 
 .scrollbar-hide {
-  -ms-overflow-style: none; /* IE and Edge */
-  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+/* --- LANDING PAGE MARQUEE --- */
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 20s linear infinite;
+  display: flex;
 }

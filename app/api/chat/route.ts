@@ -1,18 +1,41 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import dbConnect from "@/lib/mongodb";
+import User from "@/models/User";
 
 export async function POST(req: Request) {
   try {
-    
-    const { prompt, history, emails, apiKey } = await req.json();
+    const { prompt, history, emails, apiKey, model } = await req.json();
 
-    
-    const emailData = emails.map((e: any) => 
+    // --- Subscription & Security Check ---
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user || !session.user.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    await dbConnect();
+    const dbUser = await User.findOne({ email: session.user.email });
+
+    // Multi-Model Paywall Logic: 
+    // They either need to be a Premium User, OR they must provide their own API Key (BYOK)
+    if (!dbUser?.isPremium && !apiKey) {
+      return NextResponse.json({
+        reply: "🔒 **Premium Feature Locked**\n\nThe Filo AI Chat requires an active premium subscription OR a valid personal API Key.\n\nPlease open settings (Gear icon) to enter your API key, or upgrade your account.",
+        tier: "Free"
+      }, { status: 403 });
+    }
+    // ------------------------------------
+
+    const emailData = emails.map((e: any) =>
       `From: ${e.from} | Subject: ${e.subject} | Snippet: ${e.snippet}`
     ).join("\n\n");
 
     const systemPrompt = `
-    You are EZee AI, an incredibly smart, friendly, and conversational AI email assistant. 
+    You are Filo AI, an incredibly smart, friendly, and conversational AI email assistant. 
     You have the personality of a helpful, highly intelligent human colleague. 
 
     If the user just says "Hi", "Hello", or asks how you are, greet them warmly and chat like a normal person! 
@@ -27,61 +50,86 @@ export async function POST(req: Request) {
     `;
 
     try {
-      if (!apiKey) throw new Error("No API Key provided");
+      if (!apiKey) throw new Error("No API Key provided by user or system fallback.");
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-3.1-pro-preview",
-        systemInstruction: systemPrompt 
-      });
+      let replyText = "";
+      let tierLabel = "";
 
-      const formattedHistory = history.map((msg: any) => ({
-        role: msg.role === "user" ? "user" : "model",
-        parts: [{ text: msg.content }]
-      }));
+      // Route the Prompt to the requested Brain!
+      if (model === "gpt-4o") {
 
-      const result = await model.generateContent({
-        contents: formattedHistory
-      });
-      
-      const response = await result.response;
+        const openai = new OpenAI({ apiKey });
 
-      return NextResponse.json({
-        reply: response.text(),
-        tier: "Pro (Gemini BYOK)"
-      });
+        const gptHistory = history.map((msg: any) => ({
+          role: msg.role === "user" ? "user" : "assistant",
+          content: msg.content
+        }));
 
-    } catch (geminiError) {
-      console.error("🚨 GEMINI API CRASHED:", geminiError); 
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...gptHistory
+          ],
+          max_tokens: 1000,
+        });
 
-      console.log("Gemini Failed, switching to Free Tier fallback...");
+        replyText = response.choices[0]?.message?.content || "No response generated.";
+        tierLabel = "Filo AI Premium (ChatGPT-4o)";
 
-      
-      const searchKeyWords = prompt.toLowerCase().split(" ").filter((word: string) => word.length > 3);
-      let fallbackReply = "";
+      } else if (model === "claude-3-opus") {
 
-      if (searchKeyWords.length === 0) {
-        fallbackReply = `(Free Tier Mode) I did a quick scan but couldn't find anything matching that. Please ensure your Gemini API key in Settings is valid for deep AI search!`;
+        // Note: Anthropic uses "claude-3-opus-20240229" for the model string
+        const anthropic = new Anthropic({ apiKey });
+
+        const claudeHistory = history.map((msg: any) => ({
+          role: msg.role === "user" ? "user" : "assistant",
+          content: msg.content
+        }));
+
+        const response = await anthropic.messages.create({
+          model: "claude-3-opus-20240229",
+          system: systemPrompt,
+          max_tokens: 1000,
+          messages: claudeHistory,
+        });
+
+        replyText = (response.content[0] as any)?.text || "No response generated.";
+        tierLabel = "Filo AI Premium (Claude 3 Opus)";
+
       } else {
-        const foundEmails = emails.filter((e: any) => 
-          searchKeyWords.some((word: string) => 
-            e.subject?.toLowerCase().includes(word) || e.from?.toLowerCase().includes(word)
-          )
-        );
 
-        if (foundEmails.length > 0) {
-          fallbackReply = `(Free Tier Mode) I found ${foundEmails.length} email(s) that might match your search. For example: "${foundEmails[0].subject}" from ${foundEmails[0].from}. Check your API Key settings for deep AI analysis!`;
-        } else {
-          fallbackReply = `(Free Tier Mode) I did a quick scan but couldn't find anything matching that. Check your API Key settings for deep AI search!`;
-        }
+        // Default to Google Gemini 1.5 Pro
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const geminiModel = genAI.getGenerativeModel({
+          model: "gemini-1.5-pro",
+          systemInstruction: systemPrompt
+        });
+
+        const geminiHistory = history.map((msg: any) => ({
+          role: msg.role === "user" ? "user" : "model",
+          parts: [{ text: msg.content }]
+        }));
+
+        const result = await geminiModel.generateContent({
+          contents: geminiHistory
+        });
+
+        replyText = result.response.text();
+        tierLabel = "Filo AI Premium (Gemini 1.5 Pro)";
       }
 
-      return NextResponse.json({ 
-        reply: fallbackReply,
-        tier: "Free (Local Search)" 
+      return NextResponse.json({
+        reply: replyText,
+        tier: tierLabel
       });
+
+    } catch (aiError: any) {
+      console.error(`🚨 ${model} API CRASHED:`, aiError);
+      return NextResponse.json({ error: `Connection to ${model} failed. Please verify your selected API key in Settings.` }, { status: 500 });
     }
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to process request" }, { status: 500 });
+  } catch (error: any) {
+    console.error("🚨 CHAT ROUTE OUTER CRASH:", error);
+    return NextResponse.json({ error: `Failed to process request: ${error?.message || String(error)}` }, { status: 500 });
   }
 }

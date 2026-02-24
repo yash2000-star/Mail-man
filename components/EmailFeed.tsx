@@ -14,7 +14,9 @@ import {
   Coffee,
   MailOpen,
   PanelLeft,
-  Tag
+  Tag,
+  PanelLeftClose,
+  PanelLeftOpen
 } from "lucide-react";
 
 interface EmailFeedProps {
@@ -28,7 +30,18 @@ interface EmailFeedProps {
   onOpenAi: () => void;
   customLabels?: any[];
   onToggleSidebar?: () => void;
+  isSidebarCollapsed?: boolean;
 }
+
+const LABEL_COLORS: Record<string, string> = {
+  blue: "bg-[#2ca2f6] text-white border-transparent",
+  green: "bg-[#8dc500] text-white border-transparent",
+  yellow: "bg-[#f5a623] text-white border-transparent",
+  red: "bg-[#ed4c67] text-white border-transparent",
+  gray: "bg-[#6b6b6b] text-white border-transparent",
+  indigo: "bg-[#6b52ff] text-white border-transparent",
+  purple: "bg-[#c04bf2] text-white border-transparent",
+};
 
 export default function EmailFeed({
   emails,
@@ -41,6 +54,7 @@ export default function EmailFeed({
   onOpenAi,
   customLabels = [],
   onToggleSidebar,
+  isSidebarCollapsed,
 }: EmailFeedProps) {
   // The memory for what the user is searching and what tab is active!
   const [searchQuery, setSearchQuery] = useState("");
@@ -142,16 +156,25 @@ export default function EmailFeed({
 
   return (
     <section
-      className={`h-screen overflow-y-auto bg-white border-r border-gray-100 flex-col transition-all duration-300 ${selectedEmail
+      className={`h-screen overflow-y-auto bg-white dark:bg-slate-900 border-r border-gray-100 dark:border-slate-700 flex-col transition-all duration-300 ${selectedEmail
         ? "hidden md:flex md:w-[450px] shrink-0"
         : "flex flex-1 w-full"
         }`}
     >
       {/* THE HEADER */}
-      <div className="sticky top-0 z-10 bg-white p-3 pt-4 border-b border-gray-100 flex flex-col gap-3">
+      <div className="sticky top-0 z-10 bg-white dark:bg-slate-900 p-3 pt-4 border-b border-gray-100 dark:border-slate-700 flex flex-col gap-3">
         {/* ROW 1: ACTIONS & SEARCH */}
         <div className="flex items-center justify-between gap-1">
           <div className="flex items-center gap-0.5 shrink-0">
+            {onToggleSidebar && (
+              <button
+                onClick={onToggleSidebar}
+                className="p-2.5 text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full transition"
+                title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+              >
+                {isSidebarCollapsed ? <PanelLeftOpen size={18} strokeWidth={1.5} /> : <PanelLeftClose size={18} strokeWidth={1.5} />}
+              </button>
+            )}
             <button
               onClick={onRefresh}
               disabled={isSyncing}
@@ -165,7 +188,7 @@ export default function EmailFeed({
             </button>
           </div>
 
-          <div className="flex-1 flex items-center bg-[#f1f3f4] rounded-full px-4 py-2.5 focus-within:bg-white focus-within:shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] transition-all border border-transparent group min-w-[150px]">
+          <div className="flex-1 flex items-center bg-[#f1f3f4] dark:bg-slate-800 rounded-full px-4 py-2.5 focus-within:bg-white dark:focus-within:bg-slate-700 focus-within:shadow-[0_1px_2px_0_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] transition-all border border-transparent group min-w-[150px]">
             <Search size={20} strokeWidth={1.5} className="text-gray-500 mr-3 shrink-0" />
             <input
               type="text"
@@ -325,7 +348,7 @@ export default function EmailFeed({
             {visibleTabs.Important && (
               <button
                 onClick={() => setActiveTab("Important")}
-                className={`h-full px-3 whitespace-nowrap border-b-[3px] transition-colors text-[14.5px] ${activeTab === "Important" ? "text-gray-900 border-[#1a73e8] font-bold" : "text-gray-600 font-semibold hover:bg-gray-50 border-transparent hover:text-gray-900 rounded-t-lg"}`}
+                className={`h-full px-3 whitespace-nowrap border-b-[3px] transition-colors text-[14.5px] ${activeTab === "Important" ? "text-gray-900 dark:text-white border-[#1a73e8] font-bold" : "text-gray-600 dark:text-slate-400 font-semibold hover:bg-gray-50 dark:hover:bg-slate-800 border-transparent hover:text-gray-900 dark:hover:text-white rounded-t-lg"}`}
               >
                 Important
               </button>
@@ -334,7 +357,7 @@ export default function EmailFeed({
             {visibleTabs.Updates && (
               <button
                 onClick={() => setActiveTab("Updates")}
-                className={`h-full px-4 flex items-center gap-2 whitespace-nowrap border-b-[3px] transition-colors text-[14.5px] ${activeTab === "Updates" ? "text-gray-900 border-[#1a73e8] font-bold" : "text-gray-600 font-semibold hover:bg-gray-50 border-transparent hover:text-gray-900 rounded-t-lg"}`}
+                className={`h-full px-4 flex items-center gap-2 whitespace-nowrap border-b-[3px] transition-colors text-[14.5px] ${activeTab === "Updates" ? "text-gray-900 dark:text-white border-[#1a73e8] font-bold" : "text-gray-600 dark:text-slate-400 font-semibold hover:bg-gray-50 dark:hover:bg-slate-800 border-transparent hover:text-gray-900 dark:hover:text-white rounded-t-lg"}`}
               >
                 Updates
               </button>
@@ -343,7 +366,7 @@ export default function EmailFeed({
             {visibleTabs.Promotions && (
               <button
                 onClick={() => setActiveTab("Promotions")}
-                className={`h-full px-4 flex items-center gap-2 whitespace-nowrap border-b-[3px] transition-colors text-[14.5px] ${activeTab === "Promotions" ? "text-gray-900 border-[#1a73e8] font-bold" : "text-gray-600 font-semibold hover:bg-gray-50 border-transparent hover:text-gray-900 rounded-t-lg"}`}
+                className={`h-full px-4 flex items-center gap-2 whitespace-nowrap border-b-[3px] transition-colors text-[14.5px] ${activeTab === "Promotions" ? "text-gray-900 dark:text-white border-[#1a73e8] font-bold" : "text-gray-600 dark:text-slate-400 font-semibold hover:bg-gray-50 dark:hover:bg-slate-800 border-transparent hover:text-gray-900 dark:hover:text-white rounded-t-lg"}`}
               >
                 Promotions
                 <span className="px-[5px] py-[2px] rounded uppercase text-[9px] font-bold bg-blue-50 text-blue-500">2 New</span>
@@ -352,7 +375,7 @@ export default function EmailFeed({
 
             <button
               onClick={() => setActiveTab("All")}
-              className={`h-full px-4 flex items-center gap-2 whitespace-nowrap border-b-[3px] transition-colors text-[14.5px] ${activeTab === "All" ? "text-gray-900 border-[#1a73e8] font-bold" : "text-gray-600 font-semibold hover:bg-gray-50 border-transparent hover:text-gray-900 rounded-t-lg"}`}
+              className={`h-full px-4 flex items-center gap-2 whitespace-nowrap border-b-[3px] transition-colors text-[14.5px] ${activeTab === "All" ? "text-gray-900 dark:text-white border-[#1a73e8] font-bold" : "text-gray-600 dark:text-slate-400 font-semibold hover:bg-gray-50 dark:hover:bg-slate-800 border-transparent hover:text-gray-900 dark:hover:text-white rounded-t-lg"}`}
             >
               All
               <span className="px-[5px] py-[2px] rounded uppercase text-[9px] font-bold bg-blue-50 text-blue-500">2 New</span>
@@ -408,7 +431,7 @@ export default function EmailFeed({
       </div>
 
       {/* THE EMAIL LIST */}
-      <div className="flex-1 overflow-y-auto scrollbar-hide space-y-0 pb-20 bg-white">
+      <div className="flex-1 overflow-y-auto scrollbar-hide space-y-0 pb-20 bg-white dark:bg-slate-900">
         {filteredEmails.length === 0 ? (
 
           /* --- THE EMPTY STATE UI --- */
@@ -456,15 +479,15 @@ export default function EmailFeed({
             return (
               <div key={email.id}>
                 {showSeparator && (
-                  <div className="px-5 py-2.5 text-[11px] font-bold text-gray-500 mt-2 tracking-wide">
+                  <div className="px-5 py-2.5 text-[11px] font-bold text-gray-500 dark:text-slate-500 mt-2 tracking-wide">
                     {currentCategory}
                   </div>
                 )}
                 <div
                   onClick={() => onSelect(email)}
-                  className={`group relative flex items-center gap-4 py-3 px-3 border border-transparent border-b-gray-200 cursor-pointer transition-colors duration-[50ms] ${isSelected
-                    ? "bg-[#eaf1fb] mx-2 rounded-[20px] border-b-transparent shadow-[0_1px_3px_rgba(0,0,0,0.05)] z-10 my-1"
-                    : "bg-white hover:bg-[#f8f9fa] hover:rounded-[12px] hover:border-transparent hover:mx-1 hover:px-4 hover:shadow-[0_1px_4px_rgba(0,0,0,0.08)] z-0 hover:z-10"
+                  className={`group relative flex items-center gap-4 py-3 px-3 border border-transparent border-b-gray-200 dark:border-b-slate-700 cursor-pointer transition-colors duration-[50ms] ${isSelected
+                    ? "bg-[#eaf1fb] dark:bg-blue-900/30 mx-2 rounded-[20px] border-b-transparent shadow-[0_1px_3px_rgba(0,0,0,0.05)] z-10 my-1"
+                    : "bg-white dark:bg-slate-900 hover:bg-[#f8f9fa] dark:hover:bg-slate-800 hover:rounded-[12px] hover:border-transparent hover:mx-1 hover:px-4 hover:shadow-[0_1px_4px_rgba(0,0,0,0.08)] z-0 hover:z-10"
                     }`}
                 >
                   <div className="flex items-center gap-2.5 pl-1 shrink-0">
@@ -482,27 +505,34 @@ export default function EmailFeed({
                   <div className="flex-1 min-w-0 pr-4 flex items-center justify-between">
                     <div className="min-w-0 flex flex-col justify-center gap-0.5 truncate flex-1">
                       <div className="flex justify-between items-baseline">
-                        <h3 className={`text-[14px] truncate pr-2 ${isSelected ? "text-gray-900 font-bold" : (email.isUnread ? "text-gray-900 font-bold" : "text-gray-600 font-semibold")}`}>
+                        <h3 className={`text-[14px] truncate pr-2 ${isSelected ? "text-gray-900 dark:text-white font-bold" : (email.isUnread ? "text-gray-900 dark:text-white font-bold" : "text-gray-600 dark:text-slate-400 font-semibold")}`}>
                           {senderName}
                         </h3>
                         {/* Time only shows if NOT hovering */}
-                        <span className={`text-[12px] shrink-0 group-hover:hidden md:block md:group-hover:hidden ${isSelected ? "text-gray-800 font-semibold" : (email.isUnread ? "text-gray-900 font-bold" : "text-gray-500 font-medium")}`}>
+                        <span className={`text-[12px] shrink-0 group-hover:hidden md:block md:group-hover:hidden ${isSelected ? "text-gray-800 dark:text-slate-300 font-semibold" : (email.isUnread ? "text-gray-900 dark:text-white font-bold" : "text-gray-500 dark:text-slate-500 font-medium")}`}>
                           {formatTime(email.date)}
                         </span>
                       </div>
 
-                      <div className={`text-[13.5px] truncate ${email.isUnread ? "text-gray-900 font-bold" : "text-gray-500 font-medium"}`}>
+                      <div className={`text-[13.5px] truncate ${email.isUnread ? "text-gray-900 dark:text-slate-200 font-bold" : "text-gray-500 dark:text-slate-400 font-medium"}`}>
                         {email.subject}
                       </div>
 
-                      {/* Inline Badges (e.g. Important, Promotional) */}
+                      {/* Inline Badges (e.g. Important, Promotional, Custom) */}
                       {email.appliedLabels && email.appliedLabels.length > 0 && (
-                        <div className="flex gap-1.5 mt-1">
-                          {email.appliedLabels.map((l: string, i: number) => (
-                            <span key={i} className="text-[10.5px] font-bold px-2 py-0.5 rounded-full border text-blue-500 border-blue-200 bg-blue-50 inline-flex items-center gap-1">
-                              {l}
-                            </span>
-                          ))}
+                        <div className="flex gap-1.5 mt-1 flex-wrap">
+                          {email.appliedLabels.map((l: string, i: number) => {
+                            const customLabel = customLabels.find(cl => cl.name === l);
+                            const badgeColorClass = customLabel && LABEL_COLORS[customLabel.color]
+                              ? LABEL_COLORS[customLabel.color]
+                              : "text-blue-500 border-blue-200 bg-blue-50";
+
+                            return (
+                              <span key={i} className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${badgeColorClass}`}>
+                                {l}
+                              </span>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

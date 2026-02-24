@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import {
   ChevronsRight, Reply, Forward, Tag, Star, Archive,
-  Trash2, MoreHorizontal, Sparkles, ThumbsUp, ThumbsDown, ChevronDown, RefreshCw
+  Trash2, MoreHorizontal, Sparkles, ThumbsUp, ThumbsDown, ChevronDown, RefreshCw,
+  ListTodo, AlertCircle, Mail, Maximize2, Filter, Printer
 } from "lucide-react";
 
 interface ReadingPaneProps {
@@ -29,6 +30,7 @@ export default function ReadingPane({
   const { data: session } = useSession();
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
 
   // Helper to generate the same avatar gradient as the EmailFeed
   const getAvatarGradient = (name: string) => {
@@ -73,68 +75,141 @@ export default function ReadingPane({
   const senderName = selectedEmail?.from?.split("<")[0].replace(/"/g, '').trim() || "Unknown Sender";
 
   return (
-    <main className={`flex-1 min-w-0 flex-col bg-white relative border-l border-gray-100 ${!selectedEmail ? "hidden" : "flex"}`}>
+    <main className={`flex-1 min-w-0 flex-col bg-white dark:bg-slate-900 relative border-l border-gray-100 dark:border-slate-700 ${!selectedEmail ? "hidden" : "flex"}`}>
       {selectedEmail && (
         <>
           {/* --- TOP TOOLBAR --- */}
-          <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white/95 backdrop-blur-md w-full gap-2 transition-shadow shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+          <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md w-full gap-2 transition-shadow shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
 
 
-            {/* Left Actions - Styled as specific flat icons based on screenshot */}
-            <div className="flex items-center gap-3 flex-1 min-w-0 overflow-x-auto scrollbar-hide pr-2 py-1 pl-2">
+            {/* Left Actions - Styled identically to the screenshot with grouped pills and dividers */}
+            <div className="flex items-center gap-3 flex-1 min-w-0 pr-2 py-1 pl-2">
 
               {/* Group 1: Collapse/Back (Circle) */}
               <button
                 onClick={onBack}
                 title="Close"
-                className="w-[36px] h-[36px] flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition shrink-0"
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-[0_1px_3px_rgba(0,0,0,0.1)] text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition shrink-0 border border-gray-100/50 dark:border-slate-600"
               >
                 <ChevronsRight size={18} strokeWidth={2} />
               </button>
 
-              {/* Group 2: Reply / Forward */}
-              <div className="flex items-center gap-1 shrink-0 ml-1">
+              {/* Group 2: Reply / Forward (Pill with Divider) */}
+              <div className="flex items-center h-10 bg-white dark:bg-slate-800 shadow-[0_1px_3px_rgba(0,0,0,0.1)] rounded-full px-1.5 shrink-0 border border-gray-100/50 dark:border-slate-600">
                 <button
                   onClick={() => onAction && onAction(selectedEmail.id, "reply")}
-                  className="w-[36px] h-[36px] flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition"
+                  className="w-9 h-full flex items-center justify-center rounded-l-full text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition"
                   title="Reply"
-                ><Reply size={18} strokeWidth={2} /></button>
+                >
+                  <Reply size={18} strokeWidth={2} />
+                </button>
+                <div className="w-[1px] h-5 bg-gray-200 mx-1" />
                 <button
                   onClick={() => onAction && onAction(selectedEmail.id, "forward")}
-                  className="w-[36px] h-[36px] flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition"
+                  className="w-9 h-full flex items-center justify-center rounded-r-full text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition"
                   title="Forward"
-                ><Forward size={18} strokeWidth={2} /></button>
+                >
+                  <Forward size={18} strokeWidth={2} />
+                </button>
               </div>
 
-              {/* Group 3: Tag / Star / Trash / More */}
-              <div className="flex items-center gap-1 shrink-0 ml-4">
+              {/* Group 3: Tag / Star / Archive / Trash (Pill with Dividers) */}
+              <div className="flex items-center h-10 bg-white dark:bg-slate-800 shadow-[0_1px_3px_rgba(0,0,0,0.1)] rounded-full px-1.5 shrink-0 border border-gray-100/50 dark:border-slate-600">
                 <button
                   onClick={() => onAction && onAction(selectedEmail.id, "tag")}
-                  className="w-[36px] h-[36px] flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition"
+                  className="w-9 h-full flex items-center justify-center rounded-l-full text-gray-700 hover:bg-gray-50 transition"
                   title="Label"
                 >
                   <Tag size={18} strokeWidth={2} />
                 </button>
+                <div className="w-[1px] h-5 bg-gray-200 mx-1" />
                 <button
                   onClick={() => onAction && onAction(selectedEmail.id, selectedEmail.isStarred ? 'unstar' : 'star')}
-                  className={`w-[36px] h-[36px] flex items-center justify-center rounded-full transition ${selectedEmail.isStarred ? 'text-[#f4b400] hover:bg-yellow-50' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}`}
+                  className={`w-9 h-full flex items-center justify-center transition ${selectedEmail.isStarred ? 'text-[#f4b400] hover:bg-yellow-50' : 'text-gray-700 hover:bg-gray-50'}`}
                   title={selectedEmail.isStarred ? "Unstar" : "Star"}
                 >
                   <Star size={18} strokeWidth={2} className={selectedEmail.isStarred ? "fill-[#f4b400]" : ""} />
                 </button>
+                <div className="w-[1px] h-5 bg-gray-200 mx-1" />
+                <button
+                  onClick={() => onAction && onAction(selectedEmail.id, 'archive')}
+                  className="w-9 h-full flex items-center justify-center text-gray-700 hover:bg-gray-50 transition"
+                  title="Archive"
+                >
+                  <Archive size={18} strokeWidth={2} />
+                </button>
+                <div className="w-[1px] h-5 bg-gray-200 mx-1" />
                 <button
                   onClick={() => onAction && onAction(selectedEmail.id, 'trash')}
-                  className="w-[36px] h-[36px] flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition"
+                  className="w-9 h-full flex items-center justify-center rounded-r-full text-gray-700 hover:bg-gray-50 transition"
                   title="Delete"
                 >
                   <Trash2 size={18} strokeWidth={2} />
                 </button>
+              </div>
+
+              {/* Group 4: More (Circle with Popover Menu) */}
+              <div className="relative">
                 <button
+                  onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
                   title="More"
-                  className="w-[36px] h-[36px] flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition shrink-0 ml-1"
+                  className={`w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.1)] transition shrink-0 border ${isMoreMenuOpen ? "border-gray-300 bg-gray-50 text-gray-900" : "border-gray-100/50 text-gray-700 hover:bg-gray-50"}`}
                 >
                   <MoreHorizontal size={18} strokeWidth={2} />
                 </button>
+
+                {/* --- FLOATING DROPDOWN MENU --- */}
+                {isMoreMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsMoreMenuOpen(false)} />
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200 shadow-xl rounded-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200 py-2">
+                      <div className="flex flex-col">
+                        <button className="flex items-center justify-between w-full px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition">
+                          <span>Create Todo</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-gray-400 font-medium">Ctrl+⇧+T</span>
+                            <ListTodo size={16} strokeWidth={1.5} className="text-gray-900" />
+                          </div>
+                        </button>
+
+                        <div className="h-[1px] bg-gray-100 w-full my-1"></div>
+
+                        <button onClick={() => { onAction && onAction(selectedEmail.id, "spam"); setIsMoreMenuOpen(false); }} className="flex items-center justify-between w-full px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition">
+                          <span>Spam</span>
+                          <AlertCircle size={16} strokeWidth={1.5} className="text-gray-900" />
+                        </button>
+
+                        <div className="h-[1px] bg-gray-100 w-full my-1"></div>
+
+                        <button onClick={() => { onAction && onAction(selectedEmail.id, "unread"); setIsMoreMenuOpen(false); }} className="flex items-center justify-between w-full px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition">
+                          <span>Mark as Unread</span>
+                          <Mail size={16} strokeWidth={1.5} className="text-gray-900" />
+                        </button>
+
+                        <div className="h-[1px] bg-gray-100 w-full my-1"></div>
+
+                        <button className="flex items-center justify-between w-full px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition">
+                          <span>No Split</span>
+                          <Maximize2 size={16} strokeWidth={1.5} className="text-gray-900" />
+                        </button>
+
+                        <div className="h-[1px] bg-gray-100 w-full my-1"></div>
+
+                        <button className="flex items-center justify-between w-full px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition">
+                          <span>Filter mail like this</span>
+                          <Filter size={16} strokeWidth={1.5} className="text-gray-900" />
+                        </button>
+
+                        <div className="h-[1px] bg-gray-100 w-full my-1"></div>
+
+                        <button className="flex items-center justify-between w-full px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition">
+                          <span>Print</span>
+                          <Printer size={16} strokeWidth={1.5} className="text-gray-900" />
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -143,21 +218,21 @@ export default function ReadingPane({
               <button
                 onClick={onAiReply}
                 disabled={isAiThinking}
-                className="w-[36px] h-[36px] flex items-center justify-center rounded-full text-blue-500 hover:bg-blue-50 transition disabled:opacity-50"
+                className="w-[36px] h-[36px]  flex items-center justify-center rounded-full text-blue-500 hover:bg-blue-50 transition disabled:opacity-50"
                 title="AI Actions"
               >
-                <Sparkles size={18} strokeWidth={2} className={`text-blue-500 ${isAiThinking ? "animate-pulse" : ""}`} />
+                <Sparkles size={18} strokeWidth={3} className={`text-purple-500 ${isAiThinking ? "animate-pulse" : ""}`} />
               </button>
             </div>
           </div>
 
           {/* --- SCROLLABLE CONTENT --- */}
-          <div className="flex-1 overflow-y-auto p-6 md:p-8 scrollbar-hide bg-white">
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 scrollbar-hide bg-white dark:bg-slate-900">
             <div className="max-w-3xl mx-auto mt-2">
 
               {/* Email Title & Badge */}
               <div className="flex flex-wrap items-center gap-4 mb-8">
-                <h1 className="text-[26px] font-bold text-gray-900 leading-tight tracking-tight">
+                <h1 className="text-[26px] font-bold text-gray-900 dark:text-white leading-tight tracking-tight">
                   {selectedEmail.subject || "(No Subject)"}
                 </h1>
                 {selectedEmail.category ? (
@@ -208,7 +283,7 @@ export default function ReadingPane({
 
               {/* AI Summary Block */}
               {selectedEmail.summary ? (
-                <div className="bg-[#f0f7fd] rounded-3xl p-6 mb-8 mt-2 text-gray-900 font-sans shadow-sm border border-transparent">
+                <div className="bg-[#f0f7fd] dark:bg-blue-900/20 rounded-3xl p-6 mb-8 mt-2 text-gray-900 dark:text-slate-200 font-sans shadow-sm border border-transparent dark:border-blue-800/30">
                   <div className="flex justify-between items-center mb-4">
                     <h4 className="text-[17px] font-bold text-[#1a73e8]">
                       Summary
