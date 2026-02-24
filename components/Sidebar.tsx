@@ -61,8 +61,8 @@ export default function Sidebar({
             onClick={onClick}
             title={label}
             className={`flex items-center justify-center w-[48px] h-[48px] rounded-full transition-colors duration-200 ${active
-                ? "bg-[#d3e3fd] text-[#0b57d0] dark:bg-blue-900/50 dark:text-blue-300"
-                : "text-[#444746] hover:bg-[#e1e5ea] dark:text-slate-400 dark:hover:bg-slate-700"
+              ? "bg-[#d3e3fd] text-[#0b57d0] dark:bg-blue-900/50 dark:text-blue-300"
+              : "text-[#444746] hover:bg-[#e1e5ea] dark:text-slate-400 dark:hover:bg-slate-700"
               }`}
           >
             {icon}
@@ -75,8 +75,8 @@ export default function Sidebar({
       <button
         onClick={onClick}
         className={`w-full flex items-center justify-between px-3 py-1.5 text-[14px] font-medium transition-colors duration-200 ${active
-            ? "bg-[#d3e3fd] text-[#0b57d0] rounded-r-full -ml-3 pl-6 font-bold dark:bg-blue-900/50 dark:text-blue-300"
-            : "text-[#444746] hover:bg-[#e1e5ea] rounded-r-full -ml-3 pl-6 dark:text-slate-400 dark:hover:bg-slate-700"
+          ? "bg-[#d3e3fd] text-[#0b57d0] rounded-r-full -ml-3 pl-6 font-bold dark:bg-blue-900/50 dark:text-blue-300"
+          : "text-[#444746] hover:bg-[#e1e5ea] rounded-r-full -ml-3 pl-6 dark:text-slate-400 dark:hover:bg-slate-700"
           }`}
       >
         <div className="flex items-center gap-4">
@@ -113,7 +113,7 @@ export default function Sidebar({
             <div className="bg-[#1a73e8] p-[3px] rounded-[6px] shadow-[0_1px_3px_rgba(0,0,0,0.1)]">
               <Check className="text-white w-[16px] h-[16px]" strokeWidth={3} />
             </div>
-            Filo Mail
+            Mail-man
           </h1>
         )}
       </div>
@@ -153,8 +153,8 @@ export default function Sidebar({
                   <button
                     onClick={() => onSelectMailbox(label.name)}
                     className={`w-full flex items-center justify-between px-4 py-2 text-[14px] font-medium transition-all duration-200 ${isActive
-                        ? "bg-[#f2f6fc] dark:bg-blue-900/30 text-[#0b57d0] dark:text-blue-300 font-bold rounded-r-full -ml-3 pl-7"
-                        : "text-gray-700 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-r-full -ml-3 pl-7"
+                      ? "bg-[#f2f6fc] dark:bg-blue-900/30 text-[#0b57d0] dark:text-blue-300 font-bold rounded-r-full -ml-3 pl-7"
+                      : "text-gray-700 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-r-full -ml-3 pl-7"
                       }`}
                   >
                     <div className="flex items-center gap-4">
@@ -170,8 +170,8 @@ export default function Sidebar({
                         setOpenMenuId(openMenuId === label.name ? null : label.name);
                       }}
                       className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md transition-all ${openMenuId === label.name
-                          ? "opacity-100 bg-gray-200 dark:bg-slate-600 text-gray-800 dark:text-white"
-                          : "opacity-0 group-hover:opacity-100 text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-800 dark:hover:text-white"
+                        ? "opacity-100 bg-gray-200 dark:bg-slate-600 text-gray-800 dark:text-white"
+                        : "opacity-0 group-hover:opacity-100 text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-800 dark:hover:text-white"
                         }`}
                     >
                       <MoreHorizontal size={14} />

@@ -41,12 +41,12 @@ const USE_CASES = ["Agency", "Freelancer", "Startup", "Enterprise", "E-commerce"
 // ===== FAQ DATA =====
 const FAQS = [
   {
-    q: "How does EZee Mail use my data?",
+    q: "How does Mail-man use my data?",
     a: "We never store your emails. All email content is processed in-memory via your own API key and never persisted on our servers. Your privacy is absolute."
   },
   {
     q: "Can I use my own AI keys?",
-    a: "Yes! EZee Mail supports Bring Your Own Key (BYOK) for Gemini, OpenAI, and Anthropic. Just paste your key in settings and you're ready."
+    a: "Yes! Mail-man supports Bring Your Own Key (BYOK) for Gemini, OpenAI, and Anthropic. Just paste your key in settings and you're ready."
   },
   {
     q: "Is there a free plan?",
@@ -89,7 +89,7 @@ export default function LandingPage() {
             <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/30">
               <Mail size={16} className="text-white" strokeWidth={2.5} />
             </div>
-            <span className="font-extrabold text-xl text-slate-900 tracking-tight">EZee Mail</span>
+            <span className="font-extrabold text-xl text-slate-900 tracking-tight">Mail-man</span>
           </div>
 
           {/* Links */}
@@ -117,7 +117,7 @@ export default function LandingPage() {
         {/* Badge */}
         <motion.div {...fadeUp} className="inline-flex items-center gap-2 bg-blue-50 border border-blue-100 text-blue-600 px-4 py-2 rounded-full text-sm font-bold mb-8">
           <Sparkles size={14} className="fill-blue-200" />
-          Introducing EZee Mail AI
+          Introducing Mail-man AI
         </motion.div>
 
         {/* Headline */}
@@ -178,7 +178,7 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-          <span className="text-sm font-semibold text-slate-500"><span className="text-slate-900 font-bold">1,200+</span> professionals use EZee Mail</span>
+          <span className="text-sm font-semibold text-slate-500"><span className="text-slate-900 font-bold">1,200+</span> professionals use Mail-man</span>
         </motion.div>
       </section>
 
@@ -329,7 +329,7 @@ export default function LandingPage() {
               </AnimatePresence>
             </span>
           </h2>
-          <p className="text-slate-500 font-medium text-lg">Whatever you do, EZee Mail shapes itself to your workflow.</p>
+          <p className="text-slate-500 font-medium text-lg">Whatever you do, Mail-man shapes itself to your workflow.</p>
         </motion.div>
 
         <motion.div
@@ -462,7 +462,7 @@ export default function LandingPage() {
               Create your own AI email agent.
             </h2>
             <p className="text-blue-100 font-medium text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
-              Connect Gmail, add your API key, and EZee Mail does the rest. No monthly fees. Absolute privacy.
+              Connect Gmail, add your API key, and Mail-man does the rest. No monthly fees. Absolute privacy.
             </p>
             <button
               onClick={() => signIn("google")}
@@ -481,14 +481,14 @@ export default function LandingPage() {
             <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
               <Mail size={14} className="text-white" strokeWidth={2.5} />
             </div>
-            <span className="font-extrabold text-lg text-slate-900 tracking-tight">EZee Mail</span>
+            <span className="font-extrabold text-lg text-slate-900 tracking-tight">Mail-man</span>
           </div>
           <div className="flex gap-8">
             {["Privacy", "Terms", "GitHub", "Twitter"].map(l => (
               <a key={l} href="#" className="text-sm font-semibold text-slate-400 hover:text-slate-700 transition">{l}</a>
             ))}
           </div>
-          <p className="text-sm text-slate-400 font-medium">© 2026 EZee Mail Inc.</p>
+          <p className="text-sm text-slate-400 font-medium">© 2026 Mail-man Inc.</p>
         </div>
       </footer>
 

@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     // They either need to be a Premium User, OR they must provide their own API Key (BYOK)
     if (!dbUser?.isPremium && !apiKey) {
       return NextResponse.json({
-        reply: "🔒 **Premium Feature Locked**\n\nThe Filo AI Chat requires an active premium subscription OR a valid personal API Key.\n\nPlease open settings (Gear icon) to enter your API key, or upgrade your account.",
+        reply: "🔒 **Premium Feature Locked**\n\nThe Mail-man AI Chat requires an active premium subscription OR a valid personal API Key.\n\nPlease open settings (Gear icon) to enter your API key, or upgrade your account.",
         tier: "Free"
       }, { status: 403 });
     }
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     ).join("\n\n");
 
     const systemPrompt = `
-    You are Filo AI, an incredibly smart, friendly, and conversational AI email assistant. 
+    You are Mail-man AI, an incredibly smart, friendly, and conversational AI email assistant. 
     You have the personality of a helpful, highly intelligent human colleague. 
 
     If the user just says "Hi", "Hello", or asks how you are, greet them warmly and chat like a normal person! 
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
         });
 
         replyText = response.choices[0]?.message?.content || "No response generated.";
-        tierLabel = "Filo AI Premium (ChatGPT-4o)";
+        tierLabel = "Mail-man AI Premium (ChatGPT-4o)";
 
       } else if (model === "claude-3-opus") {
 
@@ -95,7 +95,7 @@ export async function POST(req: Request) {
         });
 
         replyText = (response.content[0] as any)?.text || "No response generated.";
-        tierLabel = "Filo AI Premium (Claude 3 Opus)";
+        tierLabel = "Mail-man AI Premium (Claude 3 Opus)";
 
       } else {
 
@@ -116,7 +116,7 @@ export async function POST(req: Request) {
         });
 
         replyText = result.response.text();
-        tierLabel = "Filo AI Premium (Gemini 1.5 Pro)";
+        tierLabel = "Mail-man AI Premium (Gemini 1.5 Pro)";
       }
 
       return NextResponse.json({

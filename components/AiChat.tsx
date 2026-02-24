@@ -15,7 +15,7 @@ interface AiChatProps {
   };
 }
 
-// The premium Filo AI Auto-fill prompts
+// The premium Mail-man AI Auto-fill prompts
 const SUGGESTED_PROMPTS = [
   { text: "Help me draft a reply to Shanghai Metal about Aluminum Profile inquiry.", icon: PenLine },
   { text: "Explain the AWS account upgrade requirement by April 15, 2026.", icon: Search },
@@ -124,14 +124,14 @@ export default function AiChat({ isOpen, onClose, emails, apiKeys }: AiChatProps
     // Outer Sidebar Container
     <div className="relative w-[380px] shrink-0 h-full bg-[#f9f9f9] border-l border-gray-200/60 flex flex-col animate-in slide-in-from-right-8 duration-300 z-40">
 
-      {/* Inner Area: Filo AI Premium Design (Now fills the whole height naturally) */}
+      {/* Inner Area: Mail-man AI Premium Design (Now fills the whole height naturally) */}
       <div className="flex-1 flex flex-col relative w-full h-full">
 
         {/* Header */}
         <div className="px-6 py-5 flex justify-between items-center bg-transparent shrink-0">
           <div className="flex items-center gap-3">
             <h2 className="text-[20px] font-extrabold text-[#2F95FF]">
-              Filo AI
+              Mail-man AI
             </h2>
             <select
               value={selectedModel}

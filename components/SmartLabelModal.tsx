@@ -89,7 +89,7 @@ export default function SmartLabelModal({ isOpen, onClose, onAddLabel }: SmartLa
                 maxLength={100}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe what this label is for to help Filo AI work smarter."
+                placeholder="Describe what this label is for to help Mail-man AI work smarter."
                 className="bg-transparent outline-none text-black w-full resize-none min-h-[80px] placeholder-gray-400 font-bold text-[15px]"
               />
               <div className="text-right text-gray-400 text-[13px] font-medium mt-1">

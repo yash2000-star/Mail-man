@@ -6,7 +6,7 @@ import { Providers } from "./Providers"; // <--- IMPORTING THE BRIDGE
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "EZee Mail",
+  title: "Mail-man",
   description: "AI Email Analyzer",
 };
 
@@ -20,7 +20,7 @@ export default function RootLayout({
       <body className={inter.className}>
         {/* WRAPPING THE APP IN THE BRIDGE */}
         <Providers>
-            {children}
+          {children}
         </Providers>
       </body>
     </html>
