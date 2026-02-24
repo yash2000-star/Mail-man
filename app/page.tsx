@@ -42,6 +42,7 @@ export default function Home() {
   const [isSmartLabelModalOpen, setIsSmartLabelModalOpen] = useState(false);
   const [globalTasks, setGlobalTasks] = useState<any[]>([]);
   const [customLabels, setCustomLabels] = useState<any[]>([]);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   //Find a specific header from the list
   const getHeader = (headers: any[], name: string) => {
@@ -165,22 +166,24 @@ export default function Home() {
         }),
       );
 
-      const cleanEmails = detailedEmails.map((msg: any) => ({
-        id: msg.id,
-        snippet: msg.snippet,
-        subject: getHeader(msg.payload.headers, "Subject"),
-        from: getHeader(msg.payload.headers, "From").split("<")[0].trim(),
-        date: getHeader(msg.payload.headers, "Date"),
-        body: getEmailBody(msg.payload),
-        isUnread: msg.labelIds?.includes("UNREAD") || false,
-        isStarred: msg.labelIds?.includes("STARRED") || false,
-        to: getHeader(msg.payload.headers, "To"),
-        cc: getHeader(msg.payload.headers, "Cc"),
-        hasAttachment:
-          msg.payload.parts?.some(
-            (part: any) => part.filename && part.filename.length > 0,
-          ) || false,
-      }));
+      const cleanEmails = detailedEmails
+        .filter((msg: any) => msg && msg.payload && msg.payload.headers)
+        .map((msg: any) => ({
+          id: msg.id,
+          snippet: msg.snippet,
+          subject: getHeader(msg.payload.headers, "Subject"),
+          from: getHeader(msg.payload.headers, "From").split("<")[0].trim(),
+          date: getHeader(msg.payload.headers, "Date"),
+          body: getEmailBody(msg.payload),
+          isUnread: msg.labelIds?.includes("UNREAD") || false,
+          isStarred: msg.labelIds?.includes("STARRED") || false,
+          to: getHeader(msg.payload.headers, "To"),
+          cc: getHeader(msg.payload.headers, "Cc"),
+          hasAttachment:
+            msg.payload.parts?.some(
+              (part: any) => part.filename && part.filename.length > 0,
+            ) || false,
+        }));
 
       // 1. Show emails on screen immediately
       setEmails(cleanEmails);
@@ -195,10 +198,9 @@ export default function Home() {
     }
   };
 
- // --- ⚡ UPGRADED SAFETY BATCH PROCESSING ---
-  
-  const classifyEmailsBatch = async (allEmails: any[]) => {
-    const apiKey = localStorage.getItem("gemini_api_key");
+  // --- ⚡ UPGRADED SAFETY BATCH PROCESSING ---
+
+  const classifyEmailsBatch = async (allEmails: any[], apiKey: string) => {
     if (!apiKey) return;
 
     // Split 30 emails into smaller chunks of 10 to avoid 429 errors
@@ -215,20 +217,20 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ emails: payload, apiKey }),
         });
-        
+
         if (response.status === 429) {
           console.error("Rate limit hit, skipping this chunk...");
-          continue; 
+          continue;
         }
 
         const results = await response.json();
         if (Array.isArray(results)) {
           updateEmailStateWithAiData(results);
         }
-        
+
         // Wait 2 seconds between chunks to let the API "breathe"
         await new Promise(resolve => setTimeout(resolve, 2000));
-        
+
       } catch (error) {
         console.error("Batch chunk failed:", error);
       }
@@ -256,14 +258,14 @@ export default function Home() {
       const response = await fetch("/api/ai/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          emails: emailList.map(e => ({ 
-            id: e.id, 
-            sender: e.from, 
-            content: `Subject: ${e.subject}\n\n${e.body.substring(0, 1000)}` 
+        body: JSON.stringify({
+          emails: emailList.map(e => ({
+            id: e.id,
+            sender: e.from,
+            content: `Subject: ${e.subject}\n\n${e.body.substring(0, 1000)}`
           })),
           apiKey: apiKey,
-          customLabels: customLabels 
+          customLabels: customLabels
         }),
       });
 
@@ -271,7 +273,7 @@ export default function Home() {
         console.error(`Batch Tasks API failed with status: ${response.status}`);
         return;
       }
-      
+
       const results = await response.json();
 
       if (Array.isArray(results)) {
@@ -324,9 +326,9 @@ export default function Home() {
       const response = await fetch("/api/classify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          emails: [{ id, snippet, sender: "Unknown" }], 
-          apiKey 
+        body: JSON.stringify({
+          emails: [{ id, snippet, sender: "Unknown" }],
+          apiKey
         }),
       });
       const results = await response.json();
@@ -336,12 +338,12 @@ export default function Home() {
         const updatedEmails = prevEmails.map((email) =>
           email.id === id
             ? {
-                ...email,
-                category: result.category,
-                summary: result.summary,
-                requires_reply: result.requires_reply,
-                draft_reply: result.draft_reply,
-              }
+              ...email,
+              category: result.category,
+              summary: result.summary,
+              requires_reply: result.requires_reply,
+              draft_reply: result.draft_reply,
+            }
             : email,
         );
 
@@ -356,65 +358,65 @@ export default function Home() {
     }
   };
 
-    const extractTasksAndLabels = async (email: any) => {
-      const apiKey = localStorage.getItem("gemini_api_key");
-      if (!apiKey) return;
-  
-      try {
-        const senderName = email.from.split("<")[0].replace(/"/g, "").trim();
-  
-        const response = await fetch("/api/ai/tasks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            emails: [{
-              id: email.id,
-              sender: senderName,
-              content: `Subject: ${email.subject}\n\n${email.body.substring(0, 1000)}`
-            }],
-            apiKey: apiKey,
-            customLabels: customLabels
-          }),
-        });
-  
-        if (!response.ok) {
-          console.error(`Tasks API failed with status: ${response.status}`);
-          return; // Stop here before it tries to parse HTML!
-        }
-  
-        const results = await response.json();
-        const result = results?.[0];
-  
-        if (!result) return;
-  
-        // 1. Save Tasks to the Global Dashboard
-        if (result.tasks && result.tasks.length > 0) {
-          setGlobalTasks((prevTasks) => {
-            const newTasks = result.tasks.map((task: any) => ({
-              id: Math.random().toString(36).substr(2, 9),
-              emailId: email.id,
-              title: task.title,
-              date: task.date,
-              isUrgent: task.isUrgent,
-              isPastDue: task.isPastDue,
-              status: "active"
-            }));
-            return [...prevTasks, ...newTasks];
-          });
-        }
-  
-        // 2. Add labels quietly to the email
-        if (result.appliedLabels && result.appliedLabels.length > 0) {
-          setEmails((prevEmails) =>
-            prevEmails.map((e) => e.id === email.id ? { ...e, appliedLabels: result.appliedLabels } : e)
-          );
-        }
-  
-      } catch (error) {
-        console.error("Failed to extract tasks:", error);
+  const extractTasksAndLabels = async (email: any) => {
+    const apiKey = localStorage.getItem("gemini_api_key");
+    if (!apiKey) return;
+
+    try {
+      const senderName = email.from.split("<")[0].replace(/"/g, "").trim();
+
+      const response = await fetch("/api/ai/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          emails: [{
+            id: email.id,
+            sender: senderName,
+            content: `Subject: ${email.subject}\n\n${email.body.substring(0, 1000)}`
+          }],
+          apiKey: apiKey,
+          customLabels: customLabels
+        }),
+      });
+
+      if (!response.ok) {
+        console.error(`Tasks API failed with status: ${response.status}`);
+        return; // Stop here before it tries to parse HTML!
       }
-    };
-  
+
+      const results = await response.json();
+      const result = results?.[0];
+
+      if (!result) return;
+
+      // 1. Save Tasks to the Global Dashboard
+      if (result.tasks && result.tasks.length > 0) {
+        setGlobalTasks((prevTasks) => {
+          const newTasks = result.tasks.map((task: any) => ({
+            id: Math.random().toString(36).substr(2, 9),
+            emailId: email.id,
+            title: task.title,
+            date: task.date,
+            isUrgent: task.isUrgent,
+            isPastDue: task.isPastDue,
+            status: "active"
+          }));
+          return [...prevTasks, ...newTasks];
+        });
+      }
+
+      // 2. Add labels quietly to the email
+      if (result.appliedLabels && result.appliedLabels.length > 0) {
+        setEmails((prevEmails) =>
+          prevEmails.map((e) => e.id === email.id ? { ...e, appliedLabels: result.appliedLabels } : e)
+        );
+      }
+
+    } catch (error) {
+      console.error("Failed to extract tasks:", error);
+    }
+  };
+
 
   // Quick action
   const handleEmailAction = async (id: string, action: string) => {
@@ -449,6 +451,27 @@ export default function Home() {
       );
       if (selectedEmail?.id === id)
         setSelectedEmail({ ...selectedEmail, isStarred: false });
+    } else if (action === "reply") {
+      if (selectedEmail) {
+        const senderEmail = selectedEmail.from.match(/<(.*)>/)?.[1] || selectedEmail.from;
+        setDraftData({
+          to: senderEmail,
+          subject: selectedEmail.subject?.startsWith("Re:") ? selectedEmail.subject : `Re: ${selectedEmail.subject}`,
+          body: `\n\n\n\n--- On ${selectedEmail.date}, ${selectedEmail.from} wrote:\n> ${selectedEmail.body.replace(/<[^>]+>/g, '')}`, // Basic text fallback
+        });
+        setIsComposeOpen(true);
+      }
+      return; // Stop execution here, don't hit /api/action
+    } else if (action === "forward") {
+      if (selectedEmail) {
+        setDraftData({
+          to: "",
+          subject: selectedEmail.subject?.startsWith("Fwd:") ? selectedEmail.subject : `Fwd: ${selectedEmail.subject}`,
+          body: `\n\n\n\n--- Forwarded message ---\nFrom: ${selectedEmail.from}\nDate: ${selectedEmail.date}\nSubject: ${selectedEmail.subject}\n\n${selectedEmail.body.replace(/<[^>]+>/g, '')}`, // Basic text fallback
+        });
+        setIsComposeOpen(true);
+      }
+      return; // Stop execution here
     }
 
     try {
@@ -536,7 +559,7 @@ export default function Home() {
   const handleDeleteCustomLabel = (labelName: string) => {
     // 1. Remove the label from our array
     setCustomLabels((prev) => prev.filter((label) => label.name !== labelName));
-    
+
     // 2. If the user was currently looking at that label's folder, kick them back to Inbox
     if (activeMailbox === labelName) {
       setActiveMailbox("Inbox");
@@ -554,10 +577,10 @@ export default function Home() {
   if (session) {
     return (
       //  Locks the screen height
-      <div className="flex h-screen bg-zinc-950 text-zinc-100 font-sans overflow-hidden selection:bg-purple-500/30 relative">
-        
-        {/* Sidebar (Left) */}
+      <div className="flex h-screen bg-[#f8f9fa] text-gray-900 font-sans overflow-hidden selection:bg-blue-500/20 relative">
+
         <Sidebar
+          isCollapsed={isSidebarCollapsed}
           onCompose={() => setIsComposeOpen(true)}
           activeMailbox={activeMailbox}
           onSelectMailbox={(folderName) => {
@@ -574,8 +597,8 @@ export default function Home() {
 
         <div className="flex-1 flex overflow-hidden">
           {activeMailbox === "To-do" ? (
-            <ToDoDashboard 
-              tasks={globalTasks} 
+            <ToDoDashboard
+              tasks={globalTasks}
               onToggleTask={handleToggleTask}
               onDeleteTask={handleDeleteTask}
               onViewEmail={handleViewEmail}
@@ -593,6 +616,7 @@ export default function Home() {
                 onAction={handleEmailAction}
                 onSearch={(searchWord) => fetchEmails(activeMailbox, searchWord)}
                 customLabels={customLabels}
+                onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
               />
 
               {/* The Reading Pane */}
@@ -631,7 +655,7 @@ export default function Home() {
         {!isAiChatOpen && (
           <button
             onClick={() => setIsAiChatOpen(true)}
-            className="fixed bottom-6 right-6 z-50 p-4 bg-purple-600 hover:bg-purple-500 text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-110 group border border-purple-400/30"
+            className="fixed bottom-6 right-6 z-50 p-4 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-lg transition-all duration-300 hover:scale-105 group border border-blue-400/30"
             title="Ask AI"
           >
             <Sparkles

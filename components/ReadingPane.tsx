@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import { useSession } from "next-auth/react";
-import { 
-  ChevronsRight, Reply, Forward, Tag, Star, Archive, 
-  Trash2, MoreHorizontal, Sparkles, ThumbsUp, ThumbsDown, ChevronDown, RefreshCw 
+import {
+  ChevronsRight, Reply, Forward, Tag, Star, Archive,
+  Trash2, MoreHorizontal, Sparkles, ThumbsUp, ThumbsDown, ChevronDown, RefreshCw
 } from "lucide-react";
 
 interface ReadingPaneProps {
   selectedEmail: any | null;
   getBadgeStyle: (category: string) => string;
-  onBack: () => void; 
+  onBack: () => void;
   onOpenAi?: () => void;
   onAction?: (id: string, action: string) => void;
   onAiReply?: () => void;
@@ -73,175 +73,224 @@ export default function ReadingPane({
   const senderName = selectedEmail?.from?.split("<")[0].replace(/"/g, '').trim() || "Unknown Sender";
 
   return (
-    <main className={`flex-1 min-w-0 flex-col bg-zinc-950 relative border-l border-zinc-800/50 ${!selectedEmail ? "hidden" : "flex"}`}>
+    <main className={`flex-1 min-w-0 flex-col bg-white relative border-l border-gray-100 ${!selectedEmail ? "hidden" : "flex"}`}>
       {selectedEmail && (
         <>
           {/* --- TOP TOOLBAR --- */}
-          <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-md w-full gap-2">
-            
-            {/* Left Actions - Added overflow-x-auto so icons can scroll instead of bleeding! */}
+          <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white/95 backdrop-blur-md w-full gap-2 transition-shadow shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+
+            {/* Left Actions */}
             <div className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto scrollbar-hide pr-2">
-              <button onClick={onBack} title="Back to Inbox" className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition shrink-0">
-                <ChevronsRight size={18} />
+              <button onClick={onBack} title="Back to Inbox" className="p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-full transition shrink-0 md:hidden">
+                <ChevronsRight size={20} className="rotate-180" strokeWidth={1.5} />
               </button>
-              
-              <div className="w-px h-5 bg-zinc-800 mx-1 shrink-0" /> {/* Divider */}
-              
-              <button className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition hidden sm:block shrink-0"><Reply size={16} /></button>
-              <button className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition hidden sm:block shrink-0"><Forward size={16} /></button>
-              
-              <div className="w-px h-5 bg-zinc-800 mx-1 hidden sm:block shrink-0" /> {/* Divider */}
-              
-              <button className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition shrink-0" title="Labels"><Tag size={16} /></button>
-              <button 
+
+              <button className="p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-full transition hidden xl:block shrink-0">
+                <ChevronsRight size={20} className="rotate-180" strokeWidth={1.5} />
+              </button>
+
+              <button
+                onClick={() => onAction && onAction(selectedEmail.id, "reply")}
+                className="p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-full transition shrink-0"
+              ><Reply size={18} strokeWidth={1.5} /></button>
+              <button
+                onClick={() => onAction && onAction(selectedEmail.id, "forward")}
+                className="p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-full transition shrink-0"
+              ><Forward size={18} strokeWidth={1.5} /></button>
+
+              <div className="w-px h-5 bg-gray-200 mx-1 shrink-0" /> {/* Divider */}
+
+              <button
+                onClick={() => onAction && onAction(selectedEmail.id, 'archive')}
+                className="p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-full transition shrink-0"
+                title="Archive"
+              >
+                <div className="relative flex items-center justify-center">
+                  {/* Visual Archive Box match */}
+                  <Archive size={18} strokeWidth={1.5} />
+                </div>
+              </button>
+              <button
                 onClick={() => onAction && onAction(selectedEmail.id, selectedEmail.isStarred ? 'unstar' : 'star')}
-                className={`p-2 rounded-full transition shrink-0 ${selectedEmail.isStarred ? 'text-yellow-400 bg-yellow-400/10' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`} 
+                className={`p-2 rounded-full transition shrink-0 ${selectedEmail.isStarred ? 'text-[#f4b400] bg-yellow-50 hover:bg-yellow-100' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}`}
                 title={selectedEmail.isStarred ? "Unstar" : "Star"}
               >
-                <Star size={16} className={selectedEmail.isStarred ? "fill-yellow-400" : ""} />
+                <Star size={18} strokeWidth={1.5} className={selectedEmail.isStarred ? "fill-[#f4b400]" : ""} />
               </button>
-              <button 
-                className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition shrink-0" 
-                title="Archive"
-                onClick={() => onAction && onAction(selectedEmail.id, 'archive')}
-              >
-                <Archive size={16} />
-              </button>
-              <button 
-                className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition shrink-0" 
+
+              <button
                 onClick={() => onAction && onAction(selectedEmail.id, 'trash')}
+                className="p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-full transition shrink-0"
                 title="Delete"
               >
-                <Trash2 size={16} />
+                <Trash2 size={18} strokeWidth={1.5} />
               </button>
-              <button className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition shrink-0" title="More"><MoreHorizontal size={16} /></button>
+
+              <div className="w-px h-5 bg-gray-200 mx-1 shrink-0" /> {/* Divider */}
+              <button className="p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-full transition shrink-0" title="More">
+                <MoreHorizontal size={18} strokeWidth={1.5} />
+              </button>
             </div>
 
-            {/* Right Action: AI Button (Locked in place) */}
-            <div className="shrink-0">
-              <button 
+            {/* Right Action: AI Button */}
+            <div className="shrink-0 flex items-center gap-2 pl-2">
+              <button
                 onClick={onAiReply}
                 disabled={isAiThinking}
-                className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 rounded-lg transition font-medium text-sm disabled:opacity-50 whitespace-nowrap"
+                className="flex items-center justify-center p-2.5 rounded-full border border-gray-100 shadow-[0_1px_3px_rgba(0,0,0,0.08)] bg-white hover:bg-blue-50 transition disabled:opacity-50"
+                title="AI Actions"
               >
-                <Sparkles size={16} className={isAiThinking ? "animate-pulse shrink-0" : "shrink-0"} />
-                {isAiThinking ? "AI is typing..." : "AI Draft"}
+                <Sparkles size={18} strokeWidth={1.5} className={`text-[#1a73e8] ${isAiThinking ? "animate-pulse" : ""}`} />
               </button>
             </div>
           </div>
 
           {/* --- SCROLLABLE CONTENT --- */}
-          <div className="flex-1 overflow-y-auto p-6 md:p-8 scrollbar-hide">
-            <div className="max-w-3xl mx-auto">
-              
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 scrollbar-hide bg-white">
+            <div className="max-w-3xl mx-auto mt-2">
+
               {/* Email Title & Badge */}
-              <div className="flex flex-wrap items-center gap-4 mb-6">
-                <h1 className="text-2xl font-bold text-white leading-tight">
+              <div className="flex flex-wrap items-center gap-4 mb-8">
+                <h1 className="text-[26px] font-bold text-gray-900 leading-tight tracking-tight">
                   {selectedEmail.subject || "(No Subject)"}
                 </h1>
                 {selectedEmail.category ? (
-                  <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${getBadgeStyle(selectedEmail.category)}`}>
+                  <span className="px-3 py-1 rounded-full text-[13px] font-bold text-[#1a73e8] bg-[#eef6fc] whitespace-nowrap">
                     {selectedEmail.category}
                   </span>
                 ) : (
-                  <button 
+                  <button
                     onClick={() => /* Add a single-email scan trigger here */ null}
-                    className="text-[10px] text-zinc-500 hover:text-purple-400 flex items-center gap-1 transition-colors"
+                    className="px-3 py-1 rounded-full text-[13px] font-bold text-gray-500 bg-gray-50 border border-gray-200 hover:text-blue-500 flex items-center gap-1.5 transition-colors whitespace-nowrap"
                   >
-                    <RefreshCw size={10} /> Click to AI Scan
+                    <RefreshCw size={12} strokeWidth={2} /> Scan
                   </button>
                 )}
               </div>
 
               {/* Sender Details */}
-              <div className="flex items-center justify-between mb-8 pb-4 border-b border-zinc-800/50">
+              <div className="flex items-center justify-between mb-6 pb-2">
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarGradient(senderName)} flex items-center justify-center text-white font-bold text-lg shadow-inner`}>
+                  <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${getAvatarGradient(senderName)} flex items-center justify-center text-white font-bold text-xl shadow-sm shrink-0`}>
                     {senderName.charAt(0).toUpperCase()}
                   </div>
-                  <div>
-                    <p className="text-sm font-bold text-zinc-200">
-                      {senderName}
-                    </p>
-                    <p className="text-xs text-zinc-500 flex items-center gap-1">
-                      To: Me <ChevronDown size={12} />
+                  <div className="flex flex-col">
+                    <div className="flex items-baseline gap-2">
+                      <h3 className="text-[15px] font-bold text-gray-900">
+                        {senderName}
+                      </h3>
+                    </div>
+                    <p className="text-[13px] text-gray-500 flex items-center gap-1 mt-0.5">
+                      <span className="font-bold">To:</span> Me <ChevronDown size={14} className="text-gray-400" />
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-zinc-500 hidden sm:block">Yesterday, 4:21 PM</span>
-                  <button className="text-zinc-400 hover:text-white transition"><Reply size={16} /></button>
-                  <button className="text-zinc-400 hover:text-white transition"><MoreHorizontal size={16} /></button>
+                <div className="flex items-center gap-4">
+                  <span className="text-[12.5px] text-gray-500 font-medium">12:55 PM (1 hours ago)</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => onAction && onAction(selectedEmail.id, "reply")}
+                      className="text-gray-600 hover:text-gray-900 transition hover:bg-gray-100 p-2 rounded-full"
+                      title="Reply"
+                    >
+                      <Reply size={18} strokeWidth={1.5} />
+                    </button>
+                    <button className="text-gray-600 hover:text-gray-900 transition hover:bg-gray-100 p-2 rounded-full"><MoreHorizontal size={18} strokeWidth={1.5} /></button>
+                  </div>
                 </div>
               </div>
 
-              {/* AI Summary Block - Now with a 'Thinking' fallback */}
+              {/* AI Summary Block */}
               {selectedEmail.summary ? (
-                <div className="bg-blue-500/5 border border-blue-500/10 rounded-2xl p-5 mb-8 animate-in fade-in duration-500">
-                  <div className="flex justify-between items-center mb-3">
-                    <h4 className="text-sm font-bold text-blue-400 flex items-center gap-2">
-                      <Sparkles size={16} /> Summary
+                <div className="bg-[#f0f7fd] rounded-3xl p-6 mb-8 mt-2 text-gray-900 font-sans shadow-sm border border-transparent">
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="text-[17px] font-bold text-[#1a73e8]">
+                      Summary
                     </h4>
+                    <div className="flex gap-1.5">
+                      <button className="text-[#1a73e8] hover:bg-blue-100 p-1.5 rounded-full transition"><ThumbsUp size={16} strokeWidth={1.5} /></button>
+                      <button className="text-[#1a73e8] hover:bg-blue-100 p-1.5 rounded-full transition"><ThumbsDown size={16} strokeWidth={1.5} /></button>
+                    </div>
                   </div>
-                  <p className="text-sm text-zinc-300 leading-relaxed">
-                    {selectedEmail.summary}
-                  </p>
+                  <ul className="text-[15px] text-gray-900 leading-[1.6] font-medium space-y-2 list-disc pl-5 marker:text-gray-800 marker:text-[12px]">
+                    {selectedEmail.summary.split('.').filter((s: string) => s.trim().length > 0).map((sentence: string, idx: number) => (
+                      <li key={idx} className="pl-1">{sentence.trim()}.</li>
+                    ))}
+                  </ul>
+
+                  {/* Footer Action Pill */}
+                  <div className="mt-5">
+                    <button className="px-4 py-2 bg-[#d2eafd] hover:bg-[#c6e1fc] text-[#1a73e8] text-[13px] font-bold rounded-full transition">
+                      Check activity
+                    </button>
+                  </div>
                 </div>
               ) : (
                 /* Optional: Show a subtle skeleton while batching is in progress */
-                <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-2xl p-5 mb-8 border-dashed">
-                  <p className="text-xs text-zinc-500 animate-pulse flex items-center gap-2">
-                    <RefreshCw size={12} className="animate-spin" /> 
-                    Mail-Man is summarizing this batch...
+                <div className="bg-gray-50 border border-gray-100 rounded-3xl p-6 mb-8 border-dashed mt-2">
+                  <p className="text-[15px] font-bold text-gray-500 animate-pulse flex items-center gap-3">
+                    <RefreshCw size={16} className="animate-spin" />
+                    Mail-Man is summarizing...
                   </p>
                 </div>
               )}
-
               {/* AI Smart Draft Block */}
               {selectedEmail.draft_reply && (
-                <div className="bg-purple-500/5 border border-purple-500/20 rounded-2xl p-5 mb-8 animate-in slide-in-from-bottom-2">
-                  <div className="flex items-center justify-between mb-4">
+                <div className="bg-[#f0f4f9] rounded-2xl p-5 mb-8 animate-in slide-in-from-bottom-2 border border-[#e5e7eb]">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-lg">✍️</span>
-                      <h4 className="text-xs font-bold text-purple-400 uppercase tracking-wider">
-                        AI Smart Draft
+                      <h4 className="text-[13px] font-bold text-gray-800 uppercase tracking-wider">
+                        AI Draft
                       </h4>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => navigator.clipboard.writeText(selectedEmail.draft_reply)}
-                        className="bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 border border-purple-500/30 text-xs font-bold py-1.5 px-3 rounded-lg transition"
+                        className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 text-xs font-bold py-1.5 px-3 rounded-lg transition shadow-sm"
                       >
                         Copy
                       </button>
                       <button
                         onClick={handleSend}
                         disabled={isSending || sendSuccess}
-                        className="bg-purple-600 hover:bg-purple-500 disabled:bg-emerald-600 text-white border border-purple-500/30 text-xs font-bold py-1.5 px-4 rounded-lg transition flex items-center shadow-lg"
+                        className="bg-[#1a73e8] hover:bg-blue-600 disabled:bg-emerald-600 text-white text-xs font-bold py-1.5 px-4 rounded-lg transition flex items-center shadow-sm border border-[#1a73e8]"
                       >
                         {isSending ? "Sending..." : sendSuccess ? "Sent! ✓" : "Send Reply 🚀"}
                       </button>
                     </div>
                   </div>
 
-                  <div className="bg-zinc-900/60 p-4 rounded-xl text-zinc-300 text-sm whitespace-pre-wrap border border-zinc-800/50 leading-relaxed font-mono">
+                  <div className="bg-gray-50 p-4 rounded-xl text-gray-800 text-sm whitespace-pre-wrap border border-gray-200 leading-relaxed font-mono mt-4 shadow-inner">
                     {selectedEmail.draft_reply}
                   </div>
                 </div>
               )}
 
-              {/* Actual Email Body */}
-              <div className="bg-white text-black p-6 sm:p-10 rounded-2xl min-h-[400px] shadow-inner overflow-x-auto">
-                <div
-                  dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
-                  className="email-content-wrapper"
-                />
+              {/* Actual Email Body Boxed Container */}
+              <div className="border border-gray-200 rounded-xl p-8 bg-white shadow-sm mt-8 mb-8 overflow-hidden">
+                <div className="text-gray-900 text-[15px] leading-relaxed font-sans w-full max-w-full overflow-x-auto">
+                  <div
+                    dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
+                    className="email-content-wrapper"
+                  />
+                </div>
               </div>
 
               {/* Bottom Action Pills */}
-              <div className="flex gap-3 mt-6">
-                 <button className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 border border-zinc-800 rounded-full text-sm font-medium hover:bg-zinc-800 transition text-zinc-300 shadow-sm"><Reply size={16}/> Reply</button>
-                 <button className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 border border-zinc-800 rounded-full text-sm font-medium hover:bg-zinc-800 transition text-zinc-300 shadow-sm"><Forward size={16}/> Forward</button>
+              <div className="flex gap-3 mt-6 mb-8">
+                <button
+                  onClick={() => onAction && onAction(selectedEmail.id, "reply")}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-300 rounded-full text-[14px] font-bold hover:bg-gray-50 transition text-gray-800 shadow-sm"
+                >
+                  <Reply size={18} strokeWidth={2} className="text-gray-600" /> Reply
+                </button>
+                <button
+                  onClick={() => onAction && onAction(selectedEmail.id, "forward")}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-300 rounded-full text-[14px] font-bold hover:bg-gray-50 transition text-gray-800 shadow-sm"
+                >
+                  <Forward size={18} strokeWidth={2} className="text-gray-600" /> Forward
+                </button>
               </div>
 
             </div>
