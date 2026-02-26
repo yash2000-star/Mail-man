@@ -739,13 +739,10 @@ export default function Home() {
     // Block render until the API-key check is done — prevents flash of dashboard UI before redirect
     if (isCheckingKey) {
       return (
-        <div className="flex h-screen items-center justify-center bg-slate-950">
+        <div className="flex h-screen items-center justify-center bg-white">
           <div className="flex flex-col items-center gap-4">
-            <div className="relative w-10 h-10">
-              <div className="absolute inset-0 rounded-full border-2 border-slate-700" />
-              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-violet-500 animate-spin" style={{ animationDuration: "0.9s" }} />
-            </div>
-            <p className="text-slate-500 text-sm font-medium animate-pulse">Loading workspace...</p>
+            <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+            <p className="text-gray-500 font-medium text-sm animate-pulse">Loading workspace...</p>
           </div>
         </div>
       );

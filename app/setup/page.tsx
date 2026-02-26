@@ -3,9 +3,8 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
-import { Sparkles, Key, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
+import { Key, Check, ShieldAlert, ArrowRight } from "lucide-react";
 
-// Cycling messages for the magic loading state
 const LOADING_MESSAGES = [
     "Connecting to inbox...",
     "Reading your top emails...",
@@ -22,18 +21,16 @@ export default function SetupPage() {
     const [phase, setPhase] = useState<"input" | "loading" | "done">("input");
     const [error, setError] = useState("");
     const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
-    const [progress, setProgress] = useState(0);
+    const [isSaved, setIsSaved] = useState(false);
     const cycleRef = useRef<NodeJS.Timeout | null>(null);
     const msgIndexRef = useRef(0);
 
-    // Redirect if already logged out
     useEffect(() => {
         if (status === "unauthenticated") {
             router.replace("/");
         }
     }, [status, router]);
 
-    // Redirect if user already has a key (shouldn't be on this page)
     useEffect(() => {
         if (status === "authenticated") {
             fetch("/api/user")
@@ -47,7 +44,6 @@ export default function SetupPage() {
         }
     }, [status, router]);
 
-    // Cycle loading messages
     const startMessageCycle = () => {
         msgIndexRef.current = 0;
         setLoadingMessage(LOADING_MESSAGES[0]);
@@ -57,7 +53,6 @@ export default function SetupPage() {
         }, 2500);
     };
 
-    // Clean up interval on unmount
     useEffect(() => {
         return () => {
             if (cycleRef.current) clearInterval(cycleRef.current);
@@ -74,7 +69,6 @@ export default function SetupPage() {
 
         setError("");
         setPhase("loading");
-        setProgress(10);
         startMessageCycle();
 
         try {
@@ -85,9 +79,8 @@ export default function SetupPage() {
                 body: JSON.stringify({ geminiApiKey: trimmedKey }),
             });
             if (!saveRes.ok) throw new Error("Failed to save API key.");
-            setProgress(25);
 
-            // Step 2: Fetch top 5 most recent inbox emails from Gmail
+            // Step 2: Fetch top 5 inbox emails from Gmail
             const accessToken = (session as any)?.accessToken;
             if (!accessToken) throw new Error("No access token.");
 
@@ -98,12 +91,9 @@ export default function SetupPage() {
             if (!gmailRes.ok) throw new Error("Failed to fetch emails.");
 
             const gmailData = await gmailRes.json();
-            setProgress(45);
-
             let preloadedEmails: any[] = [];
 
             if (gmailData.messages && gmailData.messages.length > 0) {
-                // Step 3: Fetch email details (headers + snippets)
                 const detailPromises = gmailData.messages.map(async (msg: any) => {
                     try {
                         const res = await fetch(
@@ -118,7 +108,6 @@ export default function SetupPage() {
                 });
 
                 const detailedMsgs = await Promise.all(detailPromises);
-                setProgress(60);
 
                 const getHeader = (headers: any[], name: string) => {
                     const h = headers?.find((h: any) => h.name.toLowerCase() === name.toLowerCase());
@@ -142,7 +131,7 @@ export default function SetupPage() {
                         ) || false,
                     }));
 
-                // Step 4: Run /api/classify on those 5 emails
+                // Step 3: Classify those emails
                 if (preloadedEmails.length > 0) {
                     const classifyPayload = preloadedEmails.map((e) => ({
                         id: e.id,
@@ -156,12 +145,9 @@ export default function SetupPage() {
                         body: JSON.stringify({ emails: classifyPayload, apiKey: trimmedKey }),
                     });
 
-                    setProgress(85);
-
                     if (classifyRes.ok) {
                         const classifyData = await classifyRes.json();
                         if (Array.isArray(classifyData)) {
-                            // Merge AI summaries into emails
                             preloadedEmails = preloadedEmails.map((email) => {
                                 const match = classifyData.find((r: any) => r.id === email.id);
                                 return match ? { ...email, ...match } : email;
@@ -171,187 +157,146 @@ export default function SetupPage() {
                 }
             }
 
-            // Step 5: Save pre-fetched & summarized emails to localStorage cache
+            // Step 4: Cache to localStorage so dashboard loads instantly
             try {
-                localStorage.setItem(
-                    "ezee_mail_cache_Inbox",
-                    JSON.stringify(preloadedEmails)
-                );
-            } catch {
-                // localStorage might not be available in some edge cases
-            }
+                localStorage.setItem("ezee_mail_cache_Inbox", JSON.stringify(preloadedEmails));
+            } catch { }
 
-            setProgress(100);
-            setPhase("done");
-
-            // Brief pause to show the ✓ state, then redirect
+            // Step 5: Show saved ✓ then redirect
             if (cycleRef.current) clearInterval(cycleRef.current);
-            setLoadingMessage("Your inbox is ready!");
+            setPhase("done");
+            setIsSaved(true);
 
             setTimeout(() => {
                 router.replace("/");
-            }, 1200);
+            }, 1000);
         } catch (err: any) {
             console.error("Setup failed:", err);
             if (cycleRef.current) clearInterval(cycleRef.current);
             setPhase("input");
-            setProgress(0);
             setError(err.message || "Something went wrong. Please try again.");
         }
     };
 
     if (status === "loading") {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-950">
-                <div className="w-8 h-8 border-2 border-slate-600 border-t-violet-500 rounded-full animate-spin" />
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-950 relative overflow-hidden">
-            {/* Ambient background glows */}
-            <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-violet-600/10 rounded-full blur-[120px] pointer-events-none" />
-            <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
+        // Matches the SettingsModal backdrop style
+        <div className="min-h-screen flex items-center justify-center bg-black/20 backdrop-blur-sm p-4" style={{ background: "linear-gradient(135deg, #e8f0fe 0%, #f3f4f6 50%, #fdf2f8 100%)" }}>
 
-            {/* Subtle grid */}
-            <div
-                className="absolute inset-0 opacity-[0.025] pointer-events-none"
-                style={{
-                    backgroundImage:
-                        "linear-gradient(rgba(148,163,184,1) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,1) 1px, transparent 1px)",
-                    backgroundSize: "40px 40px",
-                }}
-            />
+            {/* Card — identical to SettingsModal */}
+            <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
 
-            {/* Main card */}
-            <div className="relative z-10 w-full max-w-md mx-4">
-                <div
-                    className="rounded-2xl border border-slate-700/50 p-8 shadow-2xl"
-                    style={{
-                        background:
-                            "linear-gradient(135deg, rgba(15,23,42,0.95) 0%, rgba(15,23,42,0.85) 100%)",
-                        backdropFilter: "blur(24px)",
-                        WebkitBackdropFilter: "blur(24px)",
-                    }}
-                >
-                    {/* Logo & Header */}
-                    <div className="flex flex-col items-center mb-8">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center mb-4 shadow-lg shadow-violet-500/25">
-                            <Sparkles size={26} className="text-white" />
-                        </div>
-                        <h1 className="text-2xl font-bold text-slate-50 tracking-tight">
-                            Welcome to Mail-man.
-                        </h1>
-                        <p className="text-slate-400 text-sm mt-2 text-center leading-relaxed">
-                            Enter your API key to unlock AI triage.
-                        </p>
-                    </div>
+                {/* Header */}
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-[17px] font-extrabold text-black flex items-center gap-2">
+                        <Key size={18} className="text-[#2ca2f6]" />
+                        Welcome to Mail-man.
+                    </h2>
+                </div>
 
-                    {/* Input Phase */}
-                    {phase === "input" && (
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="relative">
-                                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
-                                    <Key size={16} />
+                {phase === "input" && (
+                    <form onSubmit={handleSubmit}>
+                        <div className="space-y-5">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-[13px] font-bold text-gray-500 mb-1.5 ml-1">
+                                        Google Gemini API Key
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={apiKey}
+                                        onChange={(e) => setApiKey(e.target.value)}
+                                        placeholder="AIzaSy..."
+                                        autoFocus
+                                        className="w-full bg-[#f4f6f8] border border-transparent text-black px-4 py-3 rounded-2xl outline-none focus:border-blue-300 transition-colors font-mono text-[13px] shadow-sm placeholder-gray-400"
+                                    />
                                 </div>
-                                <input
-                                    type="password"
-                                    value={apiKey}
-                                    onChange={(e) => setApiKey(e.target.value)}
-                                    placeholder="AIza..."
-                                    autoFocus
-                                    className="w-full bg-slate-800/60 border border-slate-600/50 rounded-xl pl-10 pr-4 py-3 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all"
-                                />
                             </div>
 
                             {error && (
-                                <p className="text-rose-400 text-xs font-medium px-1">{error}</p>
+                                <p className="text-red-500 text-xs font-medium px-1">{error}</p>
                             )}
 
-                            <button
-                                type="submit"
-                                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 shadow-lg shadow-violet-900/40 hover:shadow-violet-700/40 hover:scale-[1.01] active:scale-[0.99] text-sm"
-                            >
-                                Unlock My Inbox
-                                <ArrowRight size={16} />
-                            </button>
-
-                            <p className="text-center text-xs text-slate-500 mt-2 leading-relaxed">
-                                Get a free key at{" "}
-                                <a
-                                    href="https://aistudio.google.com/app/apikey"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-violet-400 hover:text-violet-300 underline transition-colors"
-                                >
-                                    aistudio.google.com
-                                </a>
-                            </p>
-                        </form>
-                    )}
-
-                    {/* Loading / Done Phase */}
-                    {(phase === "loading" || phase === "done") && (
-                        <div className="flex flex-col items-center py-6 space-y-6">
-                            {/* Spinner or checkmark */}
-                            <div className="relative w-16 h-16">
-                                {phase === "done" ? (
-                                    <div className="w-16 h-16 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center animate-[scale-in_0.3s_ease-out]">
-                                        <CheckCircle2 size={30} className="text-emerald-400" />
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div className="absolute inset-0 rounded-full border-2 border-slate-700" />
-                                        <div
-                                            className="absolute inset-0 rounded-full border-2 border-transparent border-t-violet-500 animate-spin"
-                                            style={{ animationDuration: "0.9s" }}
-                                        />
-                                        <div
-                                            className="absolute inset-2 rounded-full border-2 border-transparent border-t-blue-400 animate-spin"
-                                            style={{ animationDuration: "1.4s", animationDirection: "reverse" }}
-                                        />
-                                    </>
-                                )}
-                            </div>
-
-                            {/* Dynamic message */}
-                            <div className="text-center">
-                                <p
-                                    key={loadingMessage}
-                                    className="text-slate-200 font-medium text-sm animate-pulse"
-                                >
-                                    {loadingMessage}
+                            {/* Security notice — identical to SettingsModal */}
+                            <div className="bg-purple-500/10 border border-purple-500/20 p-4 rounded-2xl flex gap-3 text-purple-700 text-[13px] leading-relaxed">
+                                <ShieldAlert size={16} className="shrink-0 text-purple-600 mt-0.5" />
+                                <p>
+                                    <strong>Your key is stored securely in your database.</strong>{" "}
+                                    We save your API key encrypted in MongoDB and inject it only into your secure serverless functions.
                                 </p>
                             </div>
-
-                            {/* Progress bar */}
-                            <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                                <div
-                                    className="h-full rounded-full bg-gradient-to-r from-violet-500 to-blue-500 transition-all duration-700 ease-out"
-                                    style={{ width: `${progress}%` }}
-                                />
-                            </div>
-
-                            {/* Step indicators */}
-                            <div className="flex items-center gap-3 text-xs text-slate-500">
-                                <span className={progress >= 25 ? "text-violet-400" : ""}>Save key</span>
-                                <div className="w-1 h-1 rounded-full bg-slate-700" />
-                                <span className={progress >= 60 ? "text-violet-400" : ""}>Fetch emails</span>
-                                <div className="w-1 h-1 rounded-full bg-slate-700" />
-                                <span className={progress >= 85 ? "text-violet-400" : ""}>AI triage</span>
-                                <div className="w-1 h-1 rounded-full bg-slate-700" />
-                                <span className={progress >= 100 ? "text-emerald-400" : ""}>Ready!</span>
-                            </div>
                         </div>
-                    )}
-                </div>
 
-                {/* Subtle footnote */}
-                {phase === "input" && (
-                    <p className="text-center text-xs text-slate-600 mt-4">
-                        Your key is encrypted and stored securely in your account.
-                    </p>
+                        {/* Footer — identical to SettingsModal */}
+                        <div className="flex items-center justify-between gap-3 pt-6">
+                            <a
+                                href="https://aistudio.google.com/app/apikey"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[13px] text-[#2ca2f6] hover:underline font-medium"
+                            >
+                                Get a free key →
+                            </a>
+                            <button
+                                type="submit"
+                                className="bg-[#8ecbfb] hover:bg-[#6abcf8] text-white font-extrabold text-[15px] px-7 py-2.5 rounded-full transition-all flex items-center justify-center gap-2 min-w-[140px]"
+                            >
+                                Unlock Inbox
+                                <ArrowRight size={15} />
+                            </button>
+                        </div>
+                    </form>
+                )}
+
+                {(phase === "loading" || phase === "done") && (
+                    <div className="py-4 space-y-5">
+                        {/* Dynamic status message */}
+                        <p className="text-[13px] font-bold text-gray-500 mb-1.5 ml-1">Status</p>
+                        <div className="bg-[#f4f6f8] rounded-2xl px-4 py-3 text-[13px] font-mono text-black shadow-sm flex items-center gap-3">
+                            {phase === "done" ? (
+                                <>
+                                    <Check size={15} className="text-[#43b016] shrink-0 stroke-[3]" />
+                                    <span>Your inbox is ready!</span>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="w-3.5 h-3.5 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin shrink-0" />
+                                    <span
+                                        key={loadingMessage}
+                                        className="animate-pulse"
+                                    >
+                                        {loadingMessage}
+                                    </span>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Steps */}
+                        <div className="space-y-2 pl-1">
+                            {["Saving API key", "Fetching top emails", "Generating AI summaries"].map((step, i) => {
+                                const phaseIndex = phase === "loading"
+                                    ? (LOADING_MESSAGES.indexOf(loadingMessage) >= 0 ? Math.floor(LOADING_MESSAGES.indexOf(loadingMessage) * 3 / LOADING_MESSAGES.length) : 0)
+                                    : 3;
+                                const done = phase === "done" || phaseIndex > i;
+                                const active = phase === "loading" && phaseIndex === i;
+                                return (
+                                    <div key={step} className="flex items-center gap-2.5 text-[13px]">
+                                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${done ? "border-[#43b016] bg-[#43b016]/10" : active ? "border-blue-400 bg-blue-50" : "border-gray-200"}`}>
+                                            {done && <Check size={9} className="text-[#43b016] stroke-[3]" />}
+                                        </div>
+                                        <span className={done ? "text-gray-500 line-through" : active ? "text-black font-semibold" : "text-gray-400"}>{step}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 )}
             </div>
         </div>

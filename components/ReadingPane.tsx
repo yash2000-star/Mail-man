@@ -349,11 +349,12 @@ export default function ReadingPane({
               )}
 
               {/* Actual Email Body Boxed Container */}
-              <div className="border border-gray-200 dark:border-white/10 rounded-xl p-8 bg-white dark:bg-white/5 dark:backdrop-blur-xl shadow-sm mt-8 mb-8 overflow-hidden">
-                <div className="text-gray-900 dark:text-white text-[15px] leading-relaxed font-sans w-full max-w-full overflow-x-auto">
+              <div className="border border-gray-200 dark:border-white/10 rounded-xl bg-white dark:bg-white/5 dark:backdrop-blur-xl shadow-sm mt-8 mb-8 overflow-hidden">
+                {/* overflow-x-auto clips wide newsletter tables; break-words handles long unbroken strings */}
+                <div className="overflow-x-auto overflow-y-auto max-h-[70vh] p-8">
                   <div
                     dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
-                    className="email-content-wrapper"
+                    className="email-content-wrapper text-gray-900 dark:text-white text-[15px] leading-relaxed font-sans max-w-full break-words"
                   />
                 </div>
               </div>
