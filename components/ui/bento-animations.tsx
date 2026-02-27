@@ -26,15 +26,15 @@ export const TrainYourAIAnimation = () => {
     }, []);
 
     return (
-        <div className="bg-slate-50 flex-1 rounded-2xl p-4 sm:p-5 border border-gray-100 flex flex-col relative overflow-hidden h-full min-h-[160px]">
-            <div className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-widest mb-3">
+        <div className="bg-zinc-900 flex-1 rounded-lg p-4 sm:p-5 border border-zinc-800/60 flex flex-col relative overflow-hidden h-full min-h-[160px]">
+            <div className="text-[10px] sm:text-xs text-zinc-600 font-bold uppercase tracking-widest mb-3">
                 Active Smart Label
             </div>
 
-            <div className="bg-white rounded-xl p-3 sm:p-4 border border-gray-100 shadow-sm relative overflow-hidden flex-1 flex flex-col justify-center min-h-[5rem]">
+            <div className="bg-zinc-800 rounded-lg p-3 sm:p-4 border border-zinc-700/50 relative overflow-hidden flex-1 flex flex-col justify-center min-h-[5rem]">
                 <div className="flex items-start gap-3 relative z-10 w-full">
-                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500 mt-1 shrink-0" />
-                    <p className="text-[11px] sm:text-sm text-slate-400 font-medium relative leading-relaxed w-full">
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500 mt-1 shrink-0" />
+                    <p className="text-[11px] sm:text-sm text-zinc-400 font-medium relative leading-relaxed w-full">
                         "Flag all emails containing an{" "}
                         <span className="relative inline-block">
                             {/* Invisible placeholder to maintain spacing */}
@@ -42,7 +42,7 @@ export const TrainYourAIAnimation = () => {
 
                             {/* The glowing highlight background */}
                             <motion.span
-                                className="absolute inset-0 bg-blue-100 rounded-sm -z-10"
+                                className="absolute inset-0 bg-amber-500/30 rounded-sm -z-10"
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: step >= 1 ? 1 : 0 }}
                                 transition={{ duration: 0.2, delay: 0.6 }} // sync with beam crossing
@@ -53,7 +53,7 @@ export const TrainYourAIAnimation = () => {
                                 {step < 2 && (
                                     <motion.span
                                         layoutId="extracted-entity"
-                                        className="absolute left-0 top-0 text-blue-600 font-bold z-20"
+                                        className="absolute left-0 top-0 text-amber-400 font-bold z-20"
                                     >
                                         invoice
                                     </motion.span>
@@ -71,7 +71,7 @@ export const TrainYourAIAnimation = () => {
                                 animate={{ left: "110%" }}
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: 1.5, ease: "linear" }}
-                                className="absolute -top-4 -bottom-4 w-6 bg-gradient-to-r from-transparent via-blue-400/40 to-blue-500 -inset-y-4 shadow-[0_0_20px_rgba(59,130,246,0.6)] z-30 opacity-70 border-r-2 border-blue-400 mix-blend-multiply pointer-events-none"
+                                className="absolute -top-4 -bottom-4 w-6 bg-gradient-to-r from-transparent via-amber-400/40 to-amber-500 -inset-y-4 shadow-[0_0_20px_rgba(245,158,11,0.6)] z-30 opacity-70 border-r-2 border-amber-400 mix-blend-multiply pointer-events-none"
                             />
                         )}
                     </AnimatePresence>
@@ -80,7 +80,7 @@ export const TrainYourAIAnimation = () => {
 
             {/* Tag Bucket Area */}
             <div className="flex gap-2 mt-3 h-[28px] items-center">
-                <span className="text-[10px] sm:text-[11px] font-bold bg-slate-100 text-slate-500 px-3 py-1 rounded-full border border-slate-200 shadow-sm">
+                <span className="text-[10px] sm:text-[11px] font-bold bg-zinc-800 text-zinc-500 px-3 py-1 rounded-full border border-zinc-700">
                     Urgent
                 </span>
 
@@ -93,8 +93,8 @@ export const TrainYourAIAnimation = () => {
                                 className={cn(
                                     "absolute flex items-center justify-center font-bold border shadow-sm whitespace-nowrap overflow-hidden",
                                     step === 2
-                                        ? "text-blue-600 text-[11px] sm:text-sm px-1 top-0 left-0 bg-transparent border-transparent" // dropping state
-                                        : "inset-0 text-[10px] sm:text-[11px] bg-blue-50 text-blue-600 rounded-full border-blue-200 shadow-blue-500/10" // tag state
+                                        ? "text-amber-400 text-[11px] sm:text-sm px-1 top-0 left-0 bg-transparent border-transparent" // dropping state
+                                        : "inset-0 text-[10px] sm:text-[11px] bg-amber-500 text-black font-bold rounded-full border-amber-600 shadow-amber-500/10" // tag state
                                 )}
                                 transition={{
                                     layout: { type: "spring", stiffness: 200, damping: 20 },
@@ -114,7 +114,7 @@ export const TrainYourAIAnimation = () => {
 // 2. Multi-Model Hub: The "Data Routing" Node
 export const MultiModelHubAnimation = () => {
     const nodes = [
-        { id: "gemini", label: "Gemini", color: "#3b82f6", y: 15 },
+        { id: "gemini", label: "Gemini", color: "#f59e0b", y: 15 },
         { id: "gpt4", label: "GPT-4o", color: "#10b981", y: 50 },
         { id: "claude", label: "Claude", color: "#f59e0b", y: 85 },
     ];
@@ -131,7 +131,7 @@ export const MultiModelHubAnimation = () => {
     return (
         <div className="relative flex-1 flex mt-2 md:mt-4 h-[120px] w-full items-center pl-2 pr-4">
             {/* Central Input Node */}
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-8 h-8 md:w-10 md:h-10 bg-slate-900 rounded-xl z-20 flex items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.15)] border border-slate-700">
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-8 h-8 md:w-10 md:h-10 bg-zinc-800 rounded-lg z-20 flex items-center justify-center border border-zinc-700">
                 <Database size={16} className="text-white" />
             </div>
 
@@ -144,7 +144,7 @@ export const MultiModelHubAnimation = () => {
                             {/* Static Background Wire */}
                             <path
                                 d={`M 15 50 C 40 50, 60 ${node.y}, 85 ${node.y}`}
-                                stroke={isActive ? node.color : "#e2e8f0"}
+                                stroke={isActive ? node.color : "#3f3f46"}
                                 strokeWidth={isActive ? "1.5" : "1"}
                                 fill="none"
                                 className="transition-colors duration-500"
@@ -195,7 +195,7 @@ export const MultiModelHubAnimation = () => {
                         <div key={node.id} className="flex items-center gap-2 w-full justify-end">
                             <span className={cn(
                                 "text-[10px] sm:text-xs font-bold transition-colors duration-300",
-                                isActive ? "text-slate-800" : "text-slate-400"
+                                isActive ? "text-white" : "text-zinc-600"
                             )}>
                                 {node.label}
                             </span>
@@ -205,7 +205,7 @@ export const MultiModelHubAnimation = () => {
                                     boxShadow: isActive ? `0 0 15px ${node.color}60` : "none"
                                 }}
                                 transition={{ duration: 0.5, delay: 1 }}
-                                className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-sm"
+                                className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0"
                             >
                                 <div
                                     className="w-2 h-2 rounded-full transition-colors duration-300"
@@ -243,7 +243,7 @@ export const TaskExtractionAnimation = () => {
     return (
         <div className="flex-1 flex flex-col justify-between relative mt-4 h-full min-h-[140px]">
             {/* Raw Email Area */}
-            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 sm:p-4 text-xs sm:text-sm text-slate-500 font-medium leading-relaxed shadow-inner">
+            <div className="bg-zinc-900 border border-zinc-800/60 rounded-lg p-3 sm:p-4 text-xs sm:text-sm text-zinc-400 font-medium leading-relaxed">
                 Hey team, can we make sure to review the final design assets and send that report by? Thanks!{" "}
                 <span className="relative inline-block w-[90px] h-4 align-middle">
                     {/* Invisible placeholder */}
@@ -264,7 +264,7 @@ export const TaskExtractionAnimation = () => {
                         {step < 2 && (
                             <motion.div
                                 layoutId="task-morph"
-                                className="absolute inset-0 text-slate-800 font-bold whitespace-nowrap overflow-visible flex items-center"
+                                className="absolute inset-0 text-zinc-200 font-bold whitespace-nowrap overflow-visible flex items-center"
                             >
                                 Friday at 5 PM
                             </motion.div>
@@ -280,10 +280,10 @@ export const TaskExtractionAnimation = () => {
                         <motion.div
                             layoutId="task-morph"
                             className={cn(
-                                "absolute bg-white overflow-hidden flex items-center z-20",
+                                "absolute bg-zinc-800 overflow-hidden flex items-center z-20",
                                 step === 2
-                                    ? "text-slate-800 font-bold justify-center rounded-sm text-xs sm:text-sm shadow-md px-1 whitespace-nowrap h-5 top-0" // Text state size
-                                    : "w-full h-full rounded-xl border border-blue-100 shadow-sm shadow-blue-500/10 justify-start px-3 py-2 top-0" // Calendar UI size
+                                    ? "text-zinc-200 font-bold justify-center rounded-sm text-xs sm:text-sm px-1 whitespace-nowrap h-5 top-0"
+                                    : "w-full h-full rounded-lg border border-zinc-700 justify-start px-3 py-2 top-0"
                             )}
                             transition={{ type: "spring", stiffness: 250, damping: 25 }}
                         >
@@ -294,12 +294,12 @@ export const TaskExtractionAnimation = () => {
                                     transition={{ delay: 0.2 }}
                                     className="flex items-center gap-3 w-full"
                                 >
-                                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
-                                        <Calendar size={16} className="text-blue-600" />
+                                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-zinc-700 rounded-lg flex items-center justify-center shrink-0">
+                                        <Calendar size={16} className="text-amber-500" />
                                     </div>
                                     <div className="flex-1">
-                                        <p className="text-xs font-bold text-slate-900">Send Design Report</p>
-                                        <p className="text-[10px] font-medium text-slate-500 flex items-center gap-1 mt-0.5">
+                                        <p className="text-xs font-bold text-zinc-100">Send Design Report</p>
+                                        <p className="text-[10px] font-medium text-zinc-500 flex items-center gap-1 mt-0.5">
                                             <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
                                             Friday, 5:00 PM
                                         </p>
@@ -319,20 +319,20 @@ export const TaskExtractionAnimation = () => {
 // 4. Add Your Brand: The "Live Injection" Effect
 export const AddYourBrandAnimation = () => {
     const themes = [
-        { id: "blue", hex: "#3b82f6", bg: "bg-blue-600", light: "bg-blue-50", text: "text-blue-600", border: "border-blue-600" },
+        { id: "slate", hex: "#64748b", bg: "bg-slate-500", light: "bg-slate-50", text: "text-slate-600", border: "border-slate-600" },
         { id: "emerald", hex: "#10b981", bg: "bg-emerald-500", light: "bg-emerald-50", text: "text-emerald-500", border: "border-emerald-500" },
         { id: "amber", hex: "#f59e0b", bg: "bg-amber-500", light: "bg-amber-50", text: "text-amber-500", border: "border-amber-500" },
         { id: "rose", hex: "#f43f5e", bg: "bg-rose-500", light: "bg-rose-50", text: "text-rose-500", border: "border-rose-500" },
         { id: "purple", hex: "#8b5cf6", bg: "bg-purple-500", light: "bg-purple-50", text: "text-purple-500", border: "border-purple-500" },
     ];
 
-    const [activeTheme, setActiveTheme] = useState(0);
+    const [activeTheme, setActiveTheme] = useState(2);
 
     return (
         <div className="flex-1 flex flex-col justify-between mt-2 pt-2 h-full w-full group/brand relative">
 
             {/* Miniature UI Mockup */}
-            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3 sm:p-4 mb-4 relative overflow-hidden shadow-inner flex flex-col gap-3 z-10">
+            <div className="bg-zinc-900 border border-zinc-800/60 rounded-lg p-3 sm:p-4 mb-4 relative overflow-hidden flex flex-col gap-3 z-10">
                 {/* Ripple Effect Background */}
                 <AnimatePresence mode="popLayout">
                     <motion.div
@@ -349,14 +349,14 @@ export const AddYourBrandAnimation = () => {
                         <div className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors duration-300 ${themes[activeTheme].bg}`}>
                             <Mail size={10} className="text-white" />
                         </div>
-                        <div className="h-2 w-12 sm:w-16 bg-slate-200 rounded-full" />
+                        <div className="h-2 w-12 sm:w-16 bg-zinc-700 rounded-full" />
                     </div>
-                    <div className="h-1.5 w-6 sm:w-8 bg-slate-200 rounded-full" />
+                    <div className="h-1.5 w-6 sm:w-8 bg-zinc-700 rounded-full" />
                 </div>
 
                 <div className="space-y-1.5 relative z-10">
-                    <div className="h-1 w-full bg-slate-200 rounded-full" />
-                    <div className="h-1 w-4/5 bg-slate-200 rounded-full" />
+                    <div className="h-1 w-full bg-zinc-700 rounded-full" />
+                    <div className="h-1 w-4/5 bg-zinc-700 rounded-full" />
                 </div>
 
                 <button className={`relative z-10 mt-1 w-full py-1.5 rounded-lg text-[10px] font-bold text-white transition-colors duration-300 flex items-center justify-center gap-1 ${themes[activeTheme].bg} shadow-md`}>
@@ -366,8 +366,8 @@ export const AddYourBrandAnimation = () => {
 
             {/* Interactive Color Picker */}
             <div className="mt-auto px-1 pb-1 relative z-20">
-                <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Live Injection</p>
-                <div className="flex justify-between items-center bg-white border border-slate-100 p-1.5 sm:p-2 rounded-xl shadow-sm">
+                <p className="text-[9px] sm:text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2">Live Injection</p>
+                <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800/60 p-1.5 sm:p-2 rounded-lg">
                     {themes.map((theme, i) => (
                         <div
                             key={theme.id}
@@ -377,7 +377,7 @@ export const AddYourBrandAnimation = () => {
                             {activeTheme === i && (
                                 <motion.div
                                     layoutId="active-theme-ring"
-                                    className="absolute inset-0 rounded-full border-2 border-slate-300"
+                                    className="absolute inset-0 rounded-full border-2 border-zinc-500"
                                     transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                                 />
                             )}

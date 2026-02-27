@@ -16,8 +16,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="en" style={{ background: "#000" }}>
+      <body className={`${inter.className} bg-black`}>
         {/* WRAPPING THE APP IN THE BRIDGE */}
         <Providers>
           {children}

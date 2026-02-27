@@ -10,8 +10,8 @@
 
 
 :root {
-  --background: #f8f9fa;
-  --foreground: #202124;
+  --background: #000000;
+  --foreground: #ffffff;
 }
 
 @theme inline {
@@ -25,7 +25,6 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Dark mode global override */
@@ -62,4 +61,10 @@ html.dark body {
 .animate-marquee {
   animation: marquee 20s linear infinite;
   display: flex;
+}
+
+/* ─── Hero dot-grid background ─── */
+.dot-grid {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 28px 28px;
 }

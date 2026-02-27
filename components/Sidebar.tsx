@@ -26,15 +26,14 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-// Color mapper for the dots
 const LABEL_COLORS: Record<string, string> = {
-  blue: "bg-[#2ca2f6]",
-  green: "bg-[#8dc500]",
-  yellow: "bg-[#f5a623]",
-  red: "bg-[#ed4c67]",
-  gray: "bg-[#6b6b6b]",
-  indigo: "bg-[#6b52ff]",
-  purple: "bg-[#c04bf2]",
+  blue: "bg-blue-500",
+  green: "bg-emerald-500",
+  yellow: "bg-amber-500",
+  red: "bg-rose-500",
+  gray: "bg-zinc-500",
+  indigo: "bg-indigo-500",
+  purple: "bg-purple-500",
 };
 
 export default function Sidebar({
@@ -62,9 +61,9 @@ export default function Sidebar({
           <button
             onClick={onClick}
             title={label}
-            className={`flex items-center justify-center w-[48px] h-[48px] rounded-full transition-colors duration-200 ${active
-              ? "bg-[#d3e3fd] text-[#0b57d0] dark:bg-white/20 dark:text-white"
-              : "text-[#444746] hover:bg-[#e1e5ea] dark:text-slate-400 dark:hover:bg-white/10 dark:transition-colors"
+            className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-200 ${active
+              ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+              : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
               }`}
           >
             {icon}
@@ -76,24 +75,24 @@ export default function Sidebar({
     return (
       <button
         onClick={onClick}
-        className={`w-full flex items-center justify-between px-3 py-1.5 text-[14px] font-medium transition-colors duration-200 ${active
-          ? "bg-[#d3e3fd] text-[#0b57d0] rounded-r-full -ml-3 pl-6 font-bold dark:bg-white/20 dark:text-white"
-          : "text-[#444746] hover:bg-[#e1e5ea] rounded-r-full -ml-3 pl-6 dark:text-slate-400 dark:hover:bg-white/10 dark:transition-colors"
+        className={`w-full flex items-center justify-between px-3 py-1.5 text-sm font-medium transition-all duration-200 ${active
+          ? "bg-amber-500/10 text-amber-500 rounded-r-full -ml-3 pl-6 font-bold"
+          : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 rounded-r-full -ml-3 pl-6"
           }`}
       >
         <div className="flex items-center gap-4">
           {hasChevron && !isCollapsed ? (
-            <ChevronRight size={14} className="text-gray-400 dark:text-slate-500 -ml-4" />
+            <ChevronRight size={14} className="text-zinc-600 -ml-4" />
           ) : (
             <div className="w-[14px] -ml-4"></div>
           )}
-          <span className={`${active ? "text-[#0b57d0] dark:text-white" : "text-[#444746] dark:text-slate-400"}`}>
+          <span className={`${active ? "text-amber-500" : "text-zinc-500"}`}>
             {icon}
           </span>
-          {!isCollapsed && <span className={active ? "text-[#0b57d0] dark:text-white" : "text-[#444746] dark:text-slate-400"}>{label}</span>}
+          {!isCollapsed && <span className={active ? "text-amber-500" : "text-zinc-400 group-hover:text-zinc-200"}>{label}</span>}
         </div>
         {!isCollapsed && count && (
-          <span className="text-xs text-gray-500 dark:text-slate-400 pr-2">
+          <span className="text-xs text-zinc-600 pr-2">
             {count}
           </span>
         )}
@@ -102,7 +101,7 @@ export default function Sidebar({
   };
 
   return (
-    <aside className={`${isCollapsed ? 'w-20' : 'w-[250px]'} flex flex-col bg-white dark:bg-slate-950/50 dark:backdrop-blur-xl dark:border-r dark:border-white/5 h-screen transition-all duration-300 shrink-0 z-10 font-sans`}>
+    <aside className={`${isCollapsed ? 'w-20' : 'w-64'} flex flex-col bg-zinc-950 border-r border-zinc-800/60 h-screen transition-all duration-300 shrink-0 z-10 font-sans`}>
 
       {/* 1. Header */}
       <div className={`p-4 flex items-center h-16 shrink-0 mt-1 ${isCollapsed ? "justify-center px-0 mt-2" : "justify-between pl-[22px] pr-3"}`}>
@@ -129,18 +128,25 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* 2. The Main Gray Rounded Card */}
-      <div className={`flex-1 flex flex-col bg-[#f6f8fc] dark:bg-white/5 dark:backdrop-blur-xl dark:border dark:border-white/10 transition-all duration-300 overflow-hidden relative ${isCollapsed ? "mx-2 dark:rounded-2xl rounded-[24px]" : "mr-3 ml-1 dark:rounded-2xl rounded-2xl"}`}>
+      {/* 2. The Main Content Area */}
+      <div className={`flex-1 flex flex-col bg-zinc-900 border border-zinc-800/60 transition-all duration-300 overflow-hidden relative ${isCollapsed ? "mx-2 rounded-2xl" : "mr-3 ml-1 rounded-2xl"}`}>
 
         {/* Compose Button */}
-        <div className={`mb-5 mt-6 border-b border-gray-200/50 dark:border-white/10 pb-5 ${isCollapsed ? "flex justify-center mt-6 px-2" : "pl-4"}`}>
+        <div className={`mb-5 mt-6 border-b border-zinc-800/60 pb-5 ${isCollapsed ? "flex justify-center mt-6 px-2" : "pl-4"}`}>
           <button
             onClick={onCompose}
-            className={`bg-white dark:bg-white/10 dark:backdrop-blur-md dark:border dark:border-white/20 dark:text-white dark:hover:bg-white/20 hover:shadow-md text-[#001d35] font-medium rounded-2xl transition-all flex items-center justify-center shadow-sm border border-gray-100 ${isCollapsed ? "w-[44px] h-[44px] p-0 rounded-xl" : "py-3 px-4 text-[13.5px] gap-3 w-fit"}`}
+            className={`
+              bg-gradient-to-b from-amber-400 to-amber-600
+              text-zinc-900 font-bold rounded-full transition-all flex items-center justify-center
+              shadow-[inset_0px_1px_1px_rgba(255,255,255,0.4),0px_0px_15px_rgba(245,158,11,0.2)]
+              hover:shadow-[inset_0px_1px_1px_rgba(255,255,255,0.5),0px_0px_20px_rgba(245,158,11,0.4)]
+              hover:-translate-y-0.5
+              ${isCollapsed ? "w-11 h-11 p-0" : "py-3 px-6 text-sm gap-3 w-fit"}
+            `}
           >
             <div className="relative flex items-center justify-center">
-              <Pencil size={18} strokeWidth={1.5} className="text-gray-700 dark:text-slate-300" />
-              <Sparkles size={10} strokeWidth={2} className="absolute -bottom-1 -right-1 text-gray-700 dark:text-slate-300" />
+              <Pencil size={18} strokeWidth={2} />
+              <Sparkles size={10} strokeWidth={2} className="absolute -bottom-1 -right-1" />
             </div>
             {!isCollapsed && "Compose"}
           </button>
@@ -163,9 +169,9 @@ export default function Sidebar({
                 <div key={idx} className="relative group">
                   <button
                     onClick={() => onSelectMailbox(label.name)}
-                    className={`w-full flex items-center justify-between px-4 py-2 text-[14px] font-medium transition-all duration-200 ${isActive
-                      ? "bg-[#f2f6fc] dark:bg-white/20 text-[#0b57d0] dark:text-white font-bold rounded-r-full -ml-3 pl-7"
-                      : "text-gray-700 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/10 dark:transition-colors rounded-r-full -ml-3 pl-7"
+                    className={`w-full flex items-center justify-between px-4 py-2 text-sm font-medium transition-all duration-200 ${isActive
+                      ? "bg-amber-500/10 text-amber-500 font-bold rounded-r-full -ml-3 pl-7"
+                      : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 rounded-r-full -ml-3 pl-7"
                       }`}
                   >
                     <div className="flex items-center gap-4">
@@ -294,10 +300,10 @@ export default function Sidebar({
 
               {!isCollapsed && (
                 <div className="flex flex-col truncate pr-2">
-                  <span className="text-[14px] font-bold text-gray-900 dark:text-white truncate">
+                  <span className="text-sm font-bold text-zinc-100 truncate">
                     {session?.user?.name || "Yash Nirwan"}
                   </span>
-                  <span className="text-[12px] text-gray-500 dark:text-slate-400 font-medium">Free Plan</span>
+                  <span className="text-[10px] text-amber-500 font-bold uppercase tracking-widest">Free Plan</span>
                 </div>
               )}
             </div>

@@ -41,17 +41,17 @@ export default function SettingsModal({ isOpen, onClose, initialKeys, onSaveDb }
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-md bg-zinc-950 rounded-[32px] p-8 shadow-2xl relative animate-in zoom-in-95 duration-200 border border-zinc-800/60">
 
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-[17px] font-extrabold text-black flex items-center gap-2">
-            <Key size={18} className="text-[#2ca2f6]" />
-            AI Settings
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-[14px] font-black uppercase tracking-widest text-zinc-100 flex items-center gap-3">
+            <Key size={18} className="text-amber-500" />
+            AI Vault Settings
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-black transition">
-            <X size={20} />
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-100 transition">
+            <X size={20} strokeWidth={2.5} />
           </button>
         </div>
 
@@ -60,59 +60,59 @@ export default function SettingsModal({ isOpen, onClose, initialKeys, onSaveDb }
           <div className="space-y-4">
 
             <div>
-              <label className="block text-[13px] font-bold text-gray-500 mb-1.5 ml-1">Google Gemini API Key</label>
+              <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-2 ml-1">Google Gemini API Key</label>
               <input
                 type="password"
                 value={geminiKey}
                 onChange={(e) => setGeminiKey(e.target.value)}
                 placeholder="AIzaSy..."
-                className="w-full bg-[#f4f6f8] border border-transparent text-black px-4 py-3 rounded-2xl outline-none focus:border-blue-300 transition-colors font-mono text-[13px] shadow-sm placeholder-gray-400"
+                className="w-full bg-zinc-900 border border-zinc-800/60 text-zinc-100 px-5 py-3.5 rounded-2xl outline-none focus:border-amber-500/50 transition-all font-mono text-[13px] shadow-sm placeholder-zinc-700"
               />
             </div>
 
             <div>
-              <label className="block text-[13px] font-bold text-gray-500 mb-1.5 ml-1">OpenAI API Key (ChatGPT)</label>
+              <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-2 ml-1">OpenAI API Key (ChatGPT)</label>
               <input
                 type="password"
                 value={openAiKey}
                 onChange={(e) => setOpenAiKey(e.target.value)}
                 placeholder="sk-..."
-                className="w-full bg-[#f4f6f8] border border-transparent text-black px-4 py-3 rounded-2xl outline-none focus:border-blue-300 transition-colors font-mono text-[13px] shadow-sm placeholder-gray-400"
+                className="w-full bg-zinc-900 border border-zinc-800/60 text-zinc-100 px-5 py-3.5 rounded-2xl outline-none focus:border-amber-500/50 transition-all font-mono text-[13px] shadow-sm placeholder-zinc-700"
               />
             </div>
 
             <div>
-              <label className="block text-[13px] font-bold text-gray-500 mb-1.5 ml-1">Anthropic API Key (Claude)</label>
+              <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-2 ml-1">Anthropic API Key (Claude)</label>
               <input
                 type="password"
                 value={anthropicKey}
                 onChange={(e) => setAnthropicKey(e.target.value)}
                 placeholder="sk-ant-..."
-                className="w-full bg-[#f4f6f8] border border-transparent text-black px-4 py-3 rounded-2xl outline-none focus:border-blue-300 transition-colors font-mono text-[13px] shadow-sm placeholder-gray-400"
+                className="w-full bg-zinc-900 border border-zinc-800/60 text-zinc-100 px-5 py-3.5 rounded-2xl outline-none focus:border-amber-500/50 transition-all font-mono text-[13px] shadow-sm placeholder-zinc-700"
               />
             </div>
 
           </div>
 
-          <div className="bg-purple-500/10 border border-purple-500/20 p-4 rounded-2xl flex gap-3 text-purple-700 text-[13px] leading-relaxed mt-2">
-            <ShieldAlert size={16} className="shrink-0 text-purple-600 mt-0.5" />
+          <div className="bg-amber-500/5 border border-amber-500/10 p-4 rounded-2xl flex gap-3 text-zinc-400 text-xs leading-relaxed mt-2">
+            <ShieldAlert size={16} className="shrink-0 text-amber-500 mt-0.5" />
             <p>
-              <strong>Your key is stored securely in your database.</strong> We save your API key encrypted in MongoDB and inject it only into your secure serverless functions when you use AI features.
+              <strong className="text-zinc-200">Your key is stored securely.</strong> We save your API key encrypted in MongoDB and inject it only into your secure serverless functions.
             </p>
           </div>
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-end gap-3 pt-6">
-          <button onClick={onClose} className="text-gray-500 font-bold text-[15px] hover:text-black transition px-4 py-2">
+        <div className="flex items-center justify-end gap-3 pt-8">
+          <button onClick={onClose} className="text-zinc-500 font-bold text-sm hover:text-zinc-100 transition px-6 py-2.5">
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={isSaved}
-            className="bg-[#8ecbfb] hover:bg-[#6abcf8] disabled:bg-[#43b016] disabled:opacity-100 text-white font-extrabold text-[15px] px-7 py-2.5 rounded-full transition-all flex items-center justify-center gap-2 min-w-[120px]"
+            className="bg-amber-500 hover:bg-amber-400 disabled:bg-emerald-500 disabled:opacity-100 text-black font-black text-sm uppercase tracking-widest px-8 py-3 rounded-full transition-all flex items-center justify-center gap-2 min-w-[140px] shadow-xl"
           >
-            {isSaved ? <><Check size={16} className="stroke-[3]" /> Saved</> : "Save Keys"}
+            {isSaved ? <><Check size={16} className="stroke-[4]" /> Saved</> : "Save Keys"}
           </button>
         </div>
 

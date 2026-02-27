@@ -738,19 +738,12 @@ export default function Home() {
   if (session) {
     // Block render until the API-key check is done — prevents flash of dashboard UI before redirect
     if (isCheckingKey) {
-      return (
-        <div className="flex h-screen items-center justify-center bg-white">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-            <p className="text-gray-500 font-medium text-sm animate-pulse">Loading workspace...</p>
-          </div>
-        </div>
-      );
+      return <div className="h-screen w-screen bg-black" />;
     }
 
     return (
       //  Locks the screen height
-      <div className="flex h-screen bg-[#f8f9fa] dark:bg-slate-950 text-gray-900 dark:text-slate-100 font-sans overflow-hidden selection:bg-blue-500/20 relative">
+      <div className={`flex h-screen bg-zinc-950 text-zinc-100 font-sans overflow-hidden selection:bg-amber-500/20 relative`}>
 
         {/* ─── MOBILE SIDEBAR DRAWER ─── */}
         {/* Backdrop overlay */}
@@ -958,15 +951,7 @@ export default function Home() {
   }
 
   if (status === "loading") {
-    // Show a loading screen or absolutely nothing while next-auth decrypts the session cookie
-    return (
-      <div className="flex h-screen items-center justify-center bg-[#f8f9fa]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-          <p className="text-gray-500 font-medium text-sm animate-pulse">Loading workspace...</p>
-        </div>
-      </div>
-    );
+    return <div className="h-screen w-screen bg-black" />;
   }
 
   if (!session) {
