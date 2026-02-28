@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { decryptApiKey } from "@/lib/encryption";
 
 export async function POST(req: Request) {
   try {
@@ -12,11 +13,20 @@ export async function POST(req: Request) {
       );
     }
 
+    // Decrypt the API key before use
+    let decryptedKey: string;
+    try {
+      decryptedKey = decryptApiKey(apiKey);
+    } catch (decryptionError) {
+      console.error("Decryption failed in analyze route:", decryptionError);
+      return NextResponse.json({ error: "Invalid API key format or decryption failed." }, { status: 400 });
+    }
+
     if (!emails || emails.length === 0) {
       return NextResponse.json([]);
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const genAI = new GoogleGenerativeAI(decryptedKey);
 
     const model = genAI.getGenerativeModel({
       model: "ggemini-3-flash-preview",

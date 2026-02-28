@@ -154,6 +154,25 @@ export default function EmailFeed({
     return matchesSearch && matchesTab && matchesAdvanced;
   });
 
+  // Helper to calculate unread counts dynamically
+  const getUnreadCount = (tabName: string) => {
+    if (tabName === "All") return emails.filter(e => !e.isRead).length;
+    if (tabName === "Important" || tabName === "Updates" || tabName === "Promotions") {
+      return emails.filter(e => !e.isRead && e.category?.toLowerCase() === tabName.toLowerCase()).length;
+    }
+    // For custom labels
+    return emails.filter(e => !e.isRead && e.appliedLabels && e.appliedLabels.includes(tabName)).length;
+  };
+
+  const Badge = ({ count }: { count: number }) => {
+    if (count <= 0) return null;
+    return (
+      <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full text-[9px] font-black ml-1.5 self-center">
+        {count}
+      </span>
+    );
+  };
+
   return (
     <section
       className={`h-screen overflow-y-auto bg-zinc-950 border-r border-zinc-800/60 flex-col transition-all duration-300 ${selectedEmail
@@ -328,29 +347,34 @@ export default function EmailFeed({
         </div>
 
         {/* TABS & CUSTOMIZE */}
-        <div className="flex items-center justify-between font-medium mt-1 pl-2 pr-1 h-[40px]">
-          <div className="flex items-center overflow-x-auto scrollbar-hide h-full">
+        <div className="flex items-center justify-between font-medium mt-1 pl-2 pr-1 h-[40px] relative">
+          <div className="flex items-center overflow-x-auto scrollbar-hide h-full flex-1 pr-12 relative">
 
             {/* --- NEW: RENDER CUSTOM LABELS AS TABS! --- */}
-            {customLabels.map((label, idx) => (
-              <button
-                key={idx}
-                onClick={() => setActiveTab(label.name)}
-                className={`h-full px-4 flex items-center gap-1.5 whitespace-nowrap border-b-2 transition-all text-sm font-bold tracking-tight ${activeTab === label.name ? "text-white border-amber-500" : "text-zinc-500 border-transparent hover:text-zinc-300 hover:bg-zinc-900/50"
-                  }`}
-              >
-                <Sparkles size={14} className={activeTab === label.name ? "text-amber-500" : "text-zinc-600"} />
-                {label.name}
-              </button>
-            ))}
+            {customLabels.map((label, idx) => {
+              const count = getUnreadCount(label.name);
+              return (
+                <button
+                  key={idx}
+                  onClick={() => setActiveTab(label.name)}
+                  className={`h-full px-4 flex items-center gap-1.5 whitespace-nowrap border-b-2 transition-all text-sm font-bold tracking-tight ${activeTab === label.name ? "text-white border-amber-500" : "text-zinc-500 border-transparent hover:text-zinc-300 hover:bg-zinc-900/50"
+                    }`}
+                >
+                  <Sparkles size={14} className={activeTab === label.name ? "text-amber-500" : "text-zinc-600"} />
+                  {label.name}
+                  <Badge count={count} />
+                </button>
+              );
+            })}
             {/* ---------------------------------------- */}
 
             {visibleTabs.Important && (
               <button
                 onClick={() => setActiveTab("Important")}
-                className={`h-full px-3 whitespace-nowrap border-b-2 transition-all text-sm font-bold tracking-tight ${activeTab === "Important" ? "text-white border-amber-500" : "text-zinc-500 border-transparent hover:text-zinc-300 hover:bg-zinc-900/50"}`}
+                className={`h-full px-3 flex items-center whitespace-nowrap border-b-2 transition-all text-sm font-bold tracking-tight ${activeTab === "Important" ? "text-white border-amber-500" : "text-zinc-500 border-transparent hover:text-zinc-300 hover:bg-zinc-900/50"}`}
               >
                 Important
+                <Badge count={getUnreadCount("Important")} />
               </button>
             )}
 
@@ -360,6 +384,7 @@ export default function EmailFeed({
                 className={`h-full px-4 flex items-center gap-2 whitespace-nowrap border-b-2 transition-all text-sm font-bold tracking-tight ${activeTab === "Updates" ? "text-white border-amber-500" : "text-zinc-500 border-transparent hover:text-zinc-300 hover:bg-zinc-900/50"}`}
               >
                 Updates
+                <Badge count={getUnreadCount("Updates")} />
               </button>
             )}
 
@@ -369,7 +394,7 @@ export default function EmailFeed({
                 className={`h-full px-4 flex items-center gap-2 whitespace-nowrap border-b-2 transition-all text-sm font-bold tracking-tight ${activeTab === "Promotions" ? "text-white border-amber-500" : "text-zinc-500 border-transparent hover:text-zinc-300 hover:bg-zinc-900/50"}`}
               >
                 Promotions
-                <span className="px-1.5 py-0.5 rounded uppercase text-[9px] font-black bg-amber-500/20 text-amber-500">2 New</span>
+                <Badge count={getUnreadCount("Promotions")} />
               </button>
             )}
 
@@ -378,12 +403,12 @@ export default function EmailFeed({
               className={`h-full px-4 flex items-center gap-2 whitespace-nowrap border-b-2 transition-all text-sm font-bold tracking-tight ${activeTab === "All" ? "text-white border-amber-500" : "text-zinc-500 border-transparent hover:text-zinc-300 hover:bg-zinc-900/50"}`}
             >
               All
-              <span className="px-1.5 py-0.5 rounded uppercase text-[9px] font-black bg-amber-500/20 text-amber-500">2 New</span>
+              <Badge count={getUnreadCount("All")} />
             </button>
           </div>
 
           {/* CUSTOMIZE TABS BUTTON (Next to Tabs) */}
-          <div className="relative h-full flex items-center">
+          <div className="shrink-0 flex items-center absolute right-1 h-full z-10 bg-gradient-to-l from-zinc-950 via-zinc-950/90 to-transparent pl-8">
             {/* The Button */}
             <button
               onClick={() => setIsCustomizeOpen(!isCustomizeOpen)}

@@ -576,6 +576,39 @@ export default function Home() {
     }
   };
 
+  const handleUpdateEmail = (id: string, updates: any) => {
+    setEmails((prev) =>
+      prev.map((email) => {
+        if (email.id !== id) return email;
+
+        let newLabels = email.appliedLabels || [];
+        if (updates.label && !newLabels.includes(updates.label)) {
+          newLabels = [...newLabels, updates.label];
+        }
+
+        return {
+          ...email,
+          appliedLabels: newLabels,
+          category: updates.category || email.category,
+        };
+      })
+    );
+
+    setSelectedEmail((prevSelected: any) => {
+      if (prevSelected?.id !== id) return prevSelected;
+
+      let newLabels = prevSelected.appliedLabels || [];
+      if (updates.label && !newLabels.includes(updates.label)) {
+        newLabels = [...newLabels, updates.label];
+      }
+
+      return {
+        ...prevSelected,
+        appliedLabels: newLabels,
+        category: updates.category || prevSelected.category,
+      };
+    });
+  };
   // THE AI AUTO-REPLY ENGINE
   const handleAiReply = async (email: any) => {
     if (!geminiApiKey) {
@@ -828,6 +861,7 @@ export default function Home() {
                 onBack={() => setSelectedEmail(null)}
                 onOpenAi={() => setIsAiChatOpen(true)}
                 onAction={handleEmailAction}
+                onUpdateEmail={handleUpdateEmail}
                 onAiReply={() => handleAiReply(selectedEmail)}
                 isAiThinking={isAiThinking}
               />

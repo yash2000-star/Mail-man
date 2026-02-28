@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import {
   ChevronsRight, Reply, Forward, Tag, Star, Archive,
   Trash2, MoreHorizontal, Sparkles, ThumbsUp, ThumbsDown, ChevronDown, RefreshCw,
-  ListTodo, AlertCircle, Mail, Maximize2, Filter, Printer
+  ListTodo, AlertCircle, Mail, Maximize2, Filter, Printer, Plus, Check
 } from "lucide-react";
 
 interface ReadingPaneProps {
@@ -14,6 +14,7 @@ interface ReadingPaneProps {
   onBack: () => void;
   onOpenAi?: () => void;
   onAction?: (id: string, action: string) => void;
+  onUpdateEmail?: (id: string, updates: any) => void;
   onAiReply?: () => void;
   isAiThinking?: boolean;
 }
@@ -24,6 +25,7 @@ export default function ReadingPane({
   onBack,
   onOpenAi,
   onAction,
+  onUpdateEmail,
   onAiReply,
   isAiThinking
 }: ReadingPaneProps) {
@@ -31,8 +33,14 @@ export default function ReadingPane({
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [isLabelMenuOpen, setIsLabelMenuOpen] = useState(false);
 
-  // Helper to generate the same avatar gradient as the EmailFeed
+  const handleApplyLabel = (labelName: string) => {
+    if (!selectedEmail || !onUpdateEmail) return;
+    onUpdateEmail(selectedEmail.id, { label: labelName });
+    setIsLabelMenuOpen(false);
+  };
+
   const getAvatarGradient = (name: string) => {
     const char = name?.charAt(0).toUpperCase() || "A";
     if (/[A-G]/.test(char)) return "from-blue-600 to-cyan-600";
@@ -44,7 +52,6 @@ export default function ReadingPane({
   const handleSend = async () => {
     if (!session || !(session as any).accessToken) return;
     setIsSending(true);
-
     try {
       const response = await fetch("/api/send", {
         method: "POST",
@@ -60,7 +67,6 @@ export default function ReadingPane({
           message: selectedEmail.draft_reply,
         }),
       });
-
       if (response.ok) {
         setSendSuccess(true);
         setTimeout(() => setSendSuccess(false), 3000);
@@ -75,17 +81,12 @@ export default function ReadingPane({
   const senderName = selectedEmail?.from?.split("<")[0].replace(/"/g, '').trim() || "Unknown Sender";
 
   return (
-    <main className={`flex-1 min-w-0 flex-col bg-zinc-950 relative border-l border-zinc-800/60 ${!selectedEmail ? "hidden" : "flex"}`}>
+    <main className={`flex-1 min-w-0 flex-col bg-zinc-950 relative border-l border-zinc-800/60 overflow-hidden ${!selectedEmail ? "hidden" : "flex"}`}>
       {selectedEmail && (
         <>
           {/* --- TOP TOOLBAR --- */}
           <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-zinc-800/60 bg-zinc-950/90 backdrop-blur-md w-full gap-2 transition-shadow">
-
-
-            {/* Left Actions - Styled identically to the screenshot with grouped pills and dividers */}
             <div className="flex items-center gap-3 flex-1 min-w-0 pr-2 py-1 pl-2">
-
-              {/* Group 1: Collapse/Back (Circle) */}
               <button
                 onClick={onBack}
                 title="Close"
@@ -94,7 +95,6 @@ export default function ReadingPane({
                 <ChevronsRight size={18} strokeWidth={2} />
               </button>
 
-              {/* Group 2: Reply / Forward (Pill with Divider) */}
               <div className="flex items-center h-10 bg-zinc-900 rounded-full px-1.5 border border-zinc-800/60 shadow-xl overflow-hidden">
                 <button
                   onClick={() => onAction && onAction(selectedEmail.id, "reply")}
@@ -113,15 +113,44 @@ export default function ReadingPane({
                 </button>
               </div>
 
-              {/* Group 3: Tag / Star / Archive / Trash (Pill with Dividers) */}
               <div className="flex items-center h-10 bg-zinc-900 rounded-full px-1.5 border border-zinc-800/60 shadow-xl overflow-hidden">
-                <button
-                  onClick={() => onAction && onAction(selectedEmail.id, "tag")}
-                  className="w-9 h-full flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition"
-                  title="Label"
-                >
-                  <Tag size={18} strokeWidth={2} />
-                </button>
+                <div className="relative h-full flex items-center">
+                  <button
+                    onClick={() => setIsLabelMenuOpen(!isLabelMenuOpen)}
+                    className={`w-9 h-full flex items-center justify-center transition ${isLabelMenuOpen ? "text-amber-500 bg-amber-500/10" : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"}`}
+                    title="Label"
+                  >
+                    <Tag size={18} strokeWidth={2} />
+                  </button>
+                  {isLabelMenuOpen && (
+                    <div className="absolute top-full mt-3 right-0 w-[280px] bg-zinc-900 border border-zinc-700/60 rounded-2xl shadow-2xl p-4 z-[999] flex flex-col gap-3 text-left cursor-default" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white text-[15px]">Smart Label</span>
+                        <button className="w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-white transition-colors">
+                          <Plus size={14} strokeWidth={2.5} />
+                        </button>
+                      </div>
+                      <p className="text-zinc-400 text-xs leading-relaxed pr-4">
+                        Similar emails will be labeled automatically from now on.
+                      </p>
+                      <div className="flex flex-col gap-3 mt-2">
+                        {['Important', 'Updates', 'Promotions'].map(label => (
+                          <label key={label} className="flex items-center gap-3 cursor-pointer group">
+                            <div className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${label === 'Updates' ? 'bg-amber-500 border-amber-500 text-zinc-900' : 'border border-zinc-600 group-hover:border-zinc-400'}`}>
+                              {label === 'Updates' && <Check size={12} strokeWidth={4} />}
+                            </div>
+                            <span className="text-sm text-zinc-200 group-hover:text-white transition-colors">{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div className="flex justify-end mt-3">
+                        <button onClick={() => setIsLabelMenuOpen(false)} className="bg-amber-500 hover:bg-amber-400 text-zinc-900 text-sm font-bold px-5 py-2 rounded-full transition-colors">
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <div className="w-px h-5 bg-zinc-800 mx-1" />
                 <button
                   onClick={() => onAction && onAction(selectedEmail.id, selectedEmail.isStarred ? 'unstar' : 'star')}
@@ -148,7 +177,6 @@ export default function ReadingPane({
                 </button>
               </div>
 
-              {/* Group 4: More (Circle with Popover Menu) */}
               <div className="relative">
                 <button
                   onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
@@ -157,8 +185,6 @@ export default function ReadingPane({
                 >
                   <MoreHorizontal size={18} strokeWidth={2} />
                 </button>
-
-                {/* --- FLOATING DROPDOWN MENU --- */}
                 {isMoreMenuOpen && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setIsMoreMenuOpen(false)} />
@@ -171,37 +197,27 @@ export default function ReadingPane({
                             <ListTodo size={16} strokeWidth={1.5} className="text-zinc-500" />
                           </div>
                         </button>
-
                         <div className="h-px bg-zinc-800 w-full my-1"></div>
-
                         <button onClick={() => { onAction && onAction(selectedEmail.id, "spam"); setIsMoreMenuOpen(false); }} className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
                           <span>Spam</span>
                           <AlertCircle size={16} strokeWidth={1.5} className="text-zinc-500" />
                         </button>
-
                         <div className="h-px bg-zinc-800 w-full my-1"></div>
-
                         <button onClick={() => { onAction && onAction(selectedEmail.id, "unread"); setIsMoreMenuOpen(false); }} className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
                           <span>Mark as Unread</span>
                           <Mail size={16} strokeWidth={1.5} className="text-zinc-500" />
                         </button>
-
                         <div className="h-px bg-zinc-800 w-full my-1"></div>
-
                         <button className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
                           <span>No Split</span>
                           <Maximize2 size={16} strokeWidth={1.5} className="text-zinc-500" />
                         </button>
-
                         <div className="h-px bg-zinc-800 w-full my-1"></div>
-
                         <button className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
                           <span>Filter mail like this</span>
                           <Filter size={16} strokeWidth={1.5} className="text-zinc-500" />
                         </button>
-
                         <div className="h-px bg-zinc-800 w-full my-1"></div>
-
                         <button className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
                           <span>Print</span>
                           <Printer size={16} strokeWidth={1.5} className="text-zinc-500" />
@@ -213,24 +229,24 @@ export default function ReadingPane({
               </div>
             </div>
 
-            {/* Right Action: AI Button Custom Match */}
             <div className="shrink-0 flex items-center gap-2 pr-2">
               <button
                 onClick={onAiReply}
                 disabled={isAiThinking}
-                className="w-9 h-9 flex items-center justify-center rounded-full text-amber-500 hover:bg-amber-500/10 transition disabled:opacity-50"
+                className="text-amber-500 font-bold uppercase tracking-wider text-xs px-4 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-full transition-colors"
                 title="AI Actions"
               >
-                <Sparkles size={18} strokeWidth={2.5} className={isAiThinking ? "animate-pulse" : ""} />
+                {isAiThinking ? "Drafting..." : "AI Draft"}
               </button>
             </div>
           </div>
 
           {/* --- SCROLLABLE CONTENT --- */}
-          <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-zinc-950 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700">
-            <div className="max-w-3xl mx-auto mt-2">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden bg-zinc-950 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700">
 
-              {/* Email Title & Badge */}
+            {/* Metadata & AI Section (Centered) */}
+            <div className="max-w-4xl mx-auto px-8 md:px-12 pt-8 pb-6">
+
               <div className="flex flex-wrap items-center gap-4 mb-8">
                 <h1 className="text-3xl font-bold text-zinc-50 leading-tight tracking-tight">
                   {selectedEmail.subject || "(No Subject)"}
@@ -241,7 +257,7 @@ export default function ReadingPane({
                   </span>
                 ) : (
                   <button
-                    onClick={() => /* Add a single-email scan trigger here */ null}
+                    onClick={() => null}
                     className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-zinc-500 bg-zinc-900 border border-zinc-800/60 hover:text-amber-500 hover:border-amber-500/50 flex items-center gap-2 transition-all"
                   >
                     <RefreshCw size={12} strokeWidth={3} /> Scan
@@ -249,7 +265,6 @@ export default function ReadingPane({
                 )}
               </div>
 
-              {/* Sender Details */}
               <div className="flex items-center justify-between mb-6 pb-2">
                 <div className="flex items-center gap-3">
                   <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${getAvatarGradient(senderName)} flex items-center justify-center text-white font-bold text-xl shadow-sm shrink-0`}>
@@ -281,7 +296,6 @@ export default function ReadingPane({
                 </div>
               </div>
 
-              {/* AI Summary Block */}
               {selectedEmail.summary ? (
                 <div className="bg-zinc-900 border border-zinc-800/60 rounded-3xl p-6 mb-8 mt-2 shadow-2xl relative overflow-hidden group">
                   <div className="absolute top-0 left-0 w-1 h-full bg-amber-500/50" />
@@ -299,8 +313,6 @@ export default function ReadingPane({
                       <li key={idx} className="pl-1">{sentence.trim()}.</li>
                     ))}
                   </ul>
-
-                  {/* Footer Action Pill */}
                   <div className="mt-6">
                     <button className="px-5 py-2 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 text-amber-500 text-[11px] font-black uppercase tracking-widest rounded-full transition-all">
                       Check activity
@@ -308,7 +320,6 @@ export default function ReadingPane({
                   </div>
                 </div>
               ) : (
-                /* Optional: Show a subtle skeleton while batching is in progress */
                 <div className="bg-zinc-900/50 border border-zinc-800/40 border-dashed rounded-3xl p-6 mb-8 mt-2">
                   <p className="text-sm font-bold text-zinc-500 animate-pulse flex items-center gap-3">
                     <RefreshCw size={16} className="animate-spin text-amber-500" />
@@ -316,7 +327,7 @@ export default function ReadingPane({
                   </p>
                 </div>
               )}
-              {/* AI Smart Draft Block */}
+
               {selectedEmail.draft_reply && (
                 <div className="bg-zinc-900 border border-zinc-800/60 rounded-3xl p-6 mb-8 animate-in slide-in-from-bottom-3 shadow-2xl relative overflow-hidden group">
                   <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 blur-[60px] rounded-full" />
@@ -349,42 +360,35 @@ export default function ReadingPane({
                       </button>
                     </div>
                   </div>
-
                   <div className="bg-zinc-950/50 p-5 rounded-2xl text-zinc-300 text-[14px] whitespace-pre-wrap border border-zinc-800/40 leading-relaxed font-mono mt-4 shadow-inner min-h-[100px]">
                     {selectedEmail.draft_reply}
                   </div>
                 </div>
               )}
+            </div>
 
-              {/* Actual Email Body Boxed Container */}
-              <div className="mt-8 mb-8 p-6 md:p-8 bg-zinc-950 rounded-2xl">
-                <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-zinc-200/10">
-                  {/* overflow-x-auto clips wide newsletter tables; break-words handles long unbroken strings */}
-                  <div className="overflow-x-auto overflow-y-auto max-h-[70vh] p-8 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-zinc-300 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-zinc-400">
-                    <div
-                      dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
-                      className="email-content-wrapper text-zinc-900 text-[15px] leading-relaxed font-sans max-w-full break-words prose"
-                    />
-                  </div>
-                </div>
-              </div>
+            {/* Actual Email Body (Full Width Edge-to-Edge) */}
+            <div className="w-full bg-white min-h-full py-12 px-8 md:px-12">
+              <div
+                dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
+                className="email-content-wrapper text-zinc-900 text-[16px] leading-[1.8] font-sans max-w-4xl mx-auto break-words selection:bg-amber-100 overflow-x-auto max-w-full"
+              />
+            </div>
 
-              {/* Bottom Action Pills */}
-              <div className="flex gap-4 mt-8 mb-12">
-                <button
-                  onClick={() => onAction && onAction(selectedEmail.id, "reply")}
-                  className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 rounded-full px-6 py-2 transition-colors text-sm font-bold shadow-xl"
-                >
-                  <Reply size={18} strokeWidth={2} className="text-zinc-500" /> Reply
-                </button>
-                <button
-                  onClick={() => onAction && onAction(selectedEmail.id, "forward")}
-                  className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 rounded-full px-6 py-2 transition-colors text-sm font-bold shadow-xl"
-                >
-                  <Forward size={18} strokeWidth={2} className="text-zinc-500" /> Forward
-                </button>
-              </div>
-
+            {/* Bottom Action Pills (Centered) */}
+            <div className="max-w-4xl mx-auto px-8 md:px-12 py-12 flex gap-4">
+              <button
+                onClick={() => onAction && onAction(selectedEmail.id, "reply")}
+                className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 rounded-full px-6 py-2 transition-colors text-sm font-bold shadow-xl"
+              >
+                <Reply size={18} strokeWidth={2} className="text-zinc-500" /> Reply
+              </button>
+              <button
+                onClick={() => onAction && onAction(selectedEmail.id, "forward")}
+                className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 rounded-full px-6 py-2 transition-colors text-sm font-bold shadow-xl"
+              >
+                <Forward size={18} strokeWidth={2} className="text-zinc-500" /> Forward
+              </button>
             </div>
           </div>
         </>

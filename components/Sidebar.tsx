@@ -2,14 +2,13 @@
 
 import { useSession, signOut } from "next-auth/react";
 import { useState } from "react";
-import { useTheme } from "@/context/ThemeContext";
 
 import {
   Inbox, ListTodo, Plus, Folder, Star, FileText, Send,
   Archive, AlertCircle, Trash2, MoreHorizontal, Minus,
   PanelRightClose, Settings, Pencil, Tag, Edit2, Check,
   Mail, ChevronRight, ChevronDown, ChevronUp, Sparkles, CheckSquare, LogOut, Menu, PanelLeftClose, PanelLeftOpen,
-  Moon, Sun, X
+  X
 } from "lucide-react";
 
 interface SidebarProps {
@@ -49,7 +48,6 @@ export default function Sidebar({
   onClose,
 }: SidebarProps) {
   const { data: session } = useSession();
-  const { isDark, toggleTheme } = useTheme();
   const [isMailboxesOpen, setIsMailboxesOpen] = useState(true);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -106,16 +104,16 @@ export default function Sidebar({
       {/* 1. Header */}
       <div className={`p-4 flex items-center h-16 shrink-0 mt-1 ${isCollapsed ? "justify-center px-0 mt-2" : "justify-between pl-[22px] pr-3"}`}>
         {isCollapsed ? (
-          <div className="bg-[#1a73e8] p-[5px] rounded-[6px] shadow-sm flex items-center justify-center">
-            <Check className="text-white w-[16px] h-[16px]" strokeWidth={3} />
+          <div className="w-7 h-7 border border-zinc-700 flex items-center justify-center">
+            <Mail size={13} strokeWidth={2} className="text-amber-500" />
           </div>
         ) : (
-          <h1 className="text-[20px] font-bold text-[#001d35] dark:text-white flex items-center gap-2">
-            <div className="bg-[#1a73e8] p-[3px] rounded-[6px] shadow-[0_1px_3px_rgba(0,0,0,0.1)]">
-              <Check className="text-white w-[16px] h-[16px]" strokeWidth={3} />
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 border border-zinc-700 flex items-center justify-center">
+              <Mail size={13} strokeWidth={2} className="text-amber-500" />
             </div>
-            Mail-man
-          </h1>
+            <span className="font-bold tracking-tight text-white text-[15px]">Mail-man</span>
+          </div>
         )}
         {/* Close button — only visible on mobile */}
         {onClose && !isCollapsed && (
@@ -285,15 +283,15 @@ export default function Sidebar({
         </div>
 
         {/* 4. User Profile Footer */}
-        <div className="p-4 bg-[#f8f9fa] dark:bg-transparent mt-auto">
-          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} bg-white dark:bg-white/5 hover:bg-gray-50 dark:hover:bg-white/10 p-2 rounded-xl transition cursor-pointer group shadow-sm border border-gray-100 dark:border-white/10`}>
+        <div className="p-4 bg-transparent mt-auto">
+          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} bg-zinc-900/80 hover:bg-zinc-800/60 p-2 rounded-xl transition cursor-pointer group border border-zinc-800/60`}>
 
             {/* Left Side: Avatar + Name (or just Avatar if collapsed) */}
             <div className={`flex items-center gap-3 overflow-hidden ${isCollapsed ? '' : 'pl-1'}`}>
               {session?.user?.image ? (
                 <img src={session.user.image} alt="User" className="w-8 h-8 min-w-[32px] min-h-[32px] shrink-0 rounded-full object-cover" />
               ) : (
-                <div className="w-8 h-8 min-w-[32px] min-h-[32px] shrink-0 rounded-full bg-[#8b23a5] flex items-center justify-center text-white font-semibold text-[14px]">
+                <div className="w-8 h-8 min-w-[32px] min-h-[32px] shrink-0 rounded-full bg-amber-600 flex items-center justify-center text-white font-semibold text-[14px]">
                   {session?.user?.name?.charAt(0) || "Y"}
                 </div>
               )}
@@ -311,18 +309,10 @@ export default function Sidebar({
             {/* Right Side: Action Icons (Hidden if collapsed) */}
             {!isCollapsed && (
               <div className="flex items-center gap-1.5 shrink-0">
-                {/* Dark Mode Toggle */}
-                <button
-                  onClick={toggleTheme}
-                  className="text-slate-400 hover:text-slate-200 transition-colors p-1 rounded-lg"
-                  title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-                >
-                  {isDark ? <Sun size={18} strokeWidth={1.5} /> : <Moon size={18} strokeWidth={1.5} />}
-                </button>
-                <button onClick={onOpenSettings} className="text-slate-400 hover:text-slate-200 transition-colors p-1 rounded-lg" title="Settings">
+                <button onClick={onOpenSettings} className="text-zinc-400 hover:text-zinc-100 transition-colors p-1 rounded-lg" title="Settings">
                   <Settings size={18} strokeWidth={1.5} />
                 </button>
-                <button onClick={() => signOut({ callbackUrl: '/' })} className="text-slate-400 hover:text-slate-200 transition-colors p-1 rounded-lg" title="Sign Out">
+                <button onClick={() => signOut({ callbackUrl: '/' })} className="text-zinc-400 hover:text-zinc-100 transition-colors p-1 rounded-lg" title="Sign Out">
                   <LogOut size={18} strokeWidth={1.5} />
                 </button>
               </div>
