@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
@@ -17,7 +18,7 @@
     "framer-motion": "^12.34.3",
     "lucide-react": "^0.575.0",
     "mongoose": "^9.2.2",
-    "next": "16.1.6",
+    "next": "^16.3.8",
     "next-auth": "^4.24.13",
     "openai": "^6.24.0",
     "react": "19.2.3",
@@ -27,12 +28,13 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22.20.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.1.6",
+    "eslint-config-next": "^16.3.8",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.3"
   }
 }

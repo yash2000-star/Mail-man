@@ -60,7 +60,7 @@ function textOf(m: MailMessage): string {
     return (m.bodyIsHtml ? m.body.replace(/<[^>]+>/g, " ") : m.body).replace(/\s+/g, " ");
 }
 
-function createDemoApi(state: DemoState) {
+export function createDemoApi(state: DemoState) {
     const byId = (id: string) => state.messages.find((m) => m.id === id);
     const threadOf = (threadId: string) =>
         state.messages.filter((m) => m.threadId === threadId).sort((a, b) => a.timestamp - b.timestamp);

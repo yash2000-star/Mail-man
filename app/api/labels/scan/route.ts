@@ -7,6 +7,7 @@ import { getUserAi } from "@/lib/user-ai";
 import { generateText, parseJsonArray } from "@/lib/ai";
 import { aiErrorResponse, gmailAuthRequired, noAiKey } from "@/lib/api-response";
 import type { SmartLabel } from "@/lib/labels";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
 
@@ -21,6 +22,8 @@ const CONTENT_CHARS = 800;
 export async function POST(req: NextRequest) {
     const auth = await getGmailAuth(req);
     if (!auth) return gmailAuthRequired();
+    const limited = await rateLimit(auth.email, "ai");
+    if (limited) return limited;
 
     try {
         const { name } = await req.json();

@@ -93,7 +93,7 @@ const NAV_LINKS: [string, string][] = [["Features", "#features"], ["Live demo", 
 const FAQS = [
   { q: "What does Mail-man store about my email?", a: "Your emails stay in Gmail; Mail-man doesn't keep copies of them. It stores only what its features need: AI summaries, suggested replies, Smart Labels and to-dos, plus your AI API keys, encrypted. The Privacy Policy has the details." },
   { q: "Can I use my own AI keys?", a: "Yes. Mail-man works with a Google Gemini, OpenAI (ChatGPT) or Anthropic (Claude) key. Add one in settings and every AI feature uses it. Keys stay on the server and are never sent back to your browser." },
-  { q: "Does it cost anything?", a: "Mail-man itself is free, and all of its code is on GitHub. AI usage is billed by your AI provider to your own key; Gemini has a free tier that is enough to try everything." },
+  { q: "Does it cost anything?", a: "Mail-man itself is free and open source (MIT license). AI usage is billed by your AI provider to your own key; Gemini has a free tier that is enough to try everything." },
   { q: "Can I try it without connecting Gmail?", a: "Yes. The live demo runs the full app on a sample inbox, with no sign-in and no API key needed." },
 ];
 
@@ -365,7 +365,7 @@ export default function LandingPage() {
 
             {/* Trust strip */}
             <motion.div {...fadeIn(0.5, heroReady)} className={`flex flex-wrap items-center justify-center gap-x-8 gap-y-3 pt-10 border-t ${BORDER} w-full`}>
-              {["Gemini, ChatGPT or Claude", "Keys encrypted, server-side only", "Gmail via Google sign-in", "Free, with code on GitHub"].map((t, i) => (
+              {["Gemini, ChatGPT or Claude", "Keys encrypted, server-side only", "Gmail via Google sign-in", "Free and open source"].map((t, i) => (
                 <span key={i} className="flex items-center gap-2 text-[11px] font-medium text-zinc-600 uppercase tracking-wide">
                   <span className="w-1 h-1 bg-amber-500 rounded-full" />
                   {t}
@@ -522,7 +522,7 @@ export default function LandingPage() {
               <div className="p-10 bg-zinc-900 border-b md:border-b-0 md:border-r border-zinc-800/60">
                 <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-8">Bring your own key</p>
                 <p className="text-5xl font-light tracking-tighter text-white mb-1">$0</p>
-                <p className="text-xs text-zinc-600 mb-6">Mail-man is free; its code is on GitHub</p>
+                <p className="text-xs text-zinc-600 mb-6">Mail-man is free and open source</p>
                 <p className="text-zinc-400 text-sm leading-relaxed mb-8">
                   AI features run on your own Gemini, OpenAI or Anthropic key, and your provider bills you directly for what you use. Gemini has a free tier that covers trying everything.
                 </p>

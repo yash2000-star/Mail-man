@@ -6,6 +6,7 @@ import { getSessionEmail } from "@/lib/auth";
 import { getUserAi } from "@/lib/user-ai";
 import { generateText, parseJsonArray } from "@/lib/ai";
 import { aiErrorResponse, noAiKey, unauthorized } from "@/lib/api-response";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
 
@@ -37,6 +38,8 @@ function toPlainText(html: string): string {
 export async function POST(req: Request) {
   const userEmail = await getSessionEmail();
   if (!userEmail) return unauthorized();
+  const limited = await rateLimit(userEmail, "ai");
+  if (limited) return limited;
 
   try {
     const body = await req.json();

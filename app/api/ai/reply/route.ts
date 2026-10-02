@@ -3,6 +3,7 @@ import { getSessionEmail } from "@/lib/auth";
 import { getUserAi } from "@/lib/user-ai";
 import { generateText } from "@/lib/ai";
 import { aiErrorResponse, noAiKey, unauthorized } from "@/lib/api-response";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
 
@@ -11,6 +12,8 @@ const MAX_BODY_CHARS = 20000;
 export async function POST(req: Request) {
   const userEmail = await getSessionEmail();
   if (!userEmail) return unauthorized();
+  const limited = await rateLimit(userEmail, "ai");
+  if (limited) return limited;
 
   try {
     const { emailBody, senderName } = await req.json();
