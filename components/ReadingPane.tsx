@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useSession } from "next-auth/react";
 import {
   ChevronsRight, Reply, Forward, Tag, Star, Archive,
   Trash2, MoreHorizontal, Sparkles, ThumbsUp, ThumbsDown, ChevronDown, RefreshCw,
-  ListTodo, AlertCircle, Mail, Maximize2, Filter, Printer, Plus, Check
+  ListTodo, AlertCircle, Mail, Maximize2, Filter, Printer, Plus, Check, Paperclip
 } from "lucide-react";
 import EmailBodyFrame from "./EmailBodyFrame";
+import type { MailAttachment } from "@/lib/mail-types";
+
+const formatSize = (bytes: number) =>
+  bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
 interface ReadingPaneProps {
   selectedEmail: any | null;
@@ -30,7 +33,6 @@ export default function ReadingPane({
   onAiReply,
   isAiThinking
 }: ReadingPaneProps) {
-  const { data: session } = useSession();
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -50,27 +52,29 @@ export default function ReadingPane({
     return "from-emerald-600 to-teal-600";
   };
 
+  // Sends the AI-suggested reply as-is, in the same thread
   const handleSend = async () => {
-    if (!session || !(session as any).accessToken) return;
+    if (!selectedEmail?.draft_reply) return;
     setIsSending(true);
     try {
       const response = await fetch("/api/send", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${(session as any).accessToken}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: selectedEmail.fromEmail || selectedEmail.from,
-          subject: selectedEmail.subject?.startsWith("Re:")
-            ? selectedEmail.subject
-            : `Re: ${selectedEmail.subject}`,
+          subject: /^re:/i.test(selectedEmail.subject || "") ? selectedEmail.subject : `Re: ${selectedEmail.subject}`,
           message: selectedEmail.draft_reply,
+          threadId: selectedEmail.threadId,
+          inReplyTo: selectedEmail.messageId || undefined,
+          references: selectedEmail.references || undefined,
         }),
       });
       if (response.ok) {
         setSendSuccess(true);
         setTimeout(() => setSendSuccess(false), 3000);
+      } else {
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || "Could not send the reply.");
       }
     } catch (error) {
       console.error("Failed to send:", error);
@@ -371,8 +375,42 @@ export default function ReadingPane({
             {/* Actual Email Body (Full Width Edge-to-Edge) */}
             <div className="w-full bg-white min-h-full py-12 px-8 md:px-12">
               <div className="email-content-wrapper max-w-4xl mx-auto overflow-x-auto max-w-full">
-                <EmailBodyFrame html={selectedEmail.body || ""} title={selectedEmail.subject || "Email content"} />
+                {selectedEmail.body === undefined ? (
+                  <div className="space-y-3 animate-pulse" aria-label="Loading email">
+                    <div className="h-4 bg-zinc-200 rounded w-3/4" />
+                    <div className="h-4 bg-zinc-200 rounded w-full" />
+                    <div className="h-4 bg-zinc-200 rounded w-5/6" />
+                  </div>
+                ) : (
+                  <EmailBodyFrame
+                    html={selectedEmail.body || selectedEmail.snippet || ""}
+                    isHtml={selectedEmail.body ? selectedEmail.bodyIsHtml : false}
+                    title={selectedEmail.subject || "Email content"}
+                  />
+                )}
               </div>
+
+              {selectedEmail.attachments?.length > 0 && (
+                <div className="max-w-4xl mx-auto mt-10 pt-6 border-t border-zinc-200">
+                  <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-3">
+                    {selectedEmail.attachments.length} attachment{selectedEmail.attachments.length > 1 ? "s" : ""}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedEmail.attachments.map((a: MailAttachment) => (
+                      <a
+                        key={a.attachmentId}
+                        href={`/api/gmail/messages/${selectedEmail.id}/attachments/${encodeURIComponent(a.attachmentId)}`}
+                        download={a.filename}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-800 text-sm max-w-[260px]"
+                      >
+                        <Paperclip size={14} className="shrink-0 text-zinc-500" />
+                        <span className="truncate font-medium">{a.filename}</span>
+                        <span className="shrink-0 text-xs text-zinc-500">{formatSize(a.size)}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Bottom Action Pills (Centered) */}

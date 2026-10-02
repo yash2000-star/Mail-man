@@ -26,6 +26,8 @@ interface ComposeModalProps {
   defaultTo?: string;
   defaultSubject?: string;
   defaultBody?: string;
+  /** Set when replying, so the message joins the original thread */
+  replyTo?: { threadId: string; messageId: string; references: string };
 }
 
 export default function ComposeModal({
@@ -34,6 +36,7 @@ export default function ComposeModal({
   defaultTo = "",
   defaultSubject = "",
   defaultBody = "",
+  replyTo,
 }: ComposeModalProps) {
   const { data: session } = useSession();
 
@@ -60,6 +63,7 @@ export default function ComposeModal({
   const [subject, setSubject] = useState(defaultSubject);
   const [message, setMessage] = useState(defaultBody);
   const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState("");
   const [isEnhancing, setIsEnhancing] = useState(false);
   const quillRef = useRef<any>(null);
   const [activeFormats, setActiveFormats] = useState<any>({});
@@ -73,40 +77,48 @@ export default function ComposeModal({
   if (!isOpen) return null;
 
   const handleSend = async () => {
-    // message is now HTML (e.g., "<p><strong>Hello</strong></p>")
-    if (
-      !session ||
-      !(session as any).accessToken ||
-      !to.trim() ||
-      !message.trim()
-    )
-      return;
+    // message is HTML from the editor (e.g. "<p><strong>Hello</strong></p>")
+    if (!to.trim() || !message.trim() || message === "<p><br></p>") return;
 
     setIsSending(true);
+    setSendError("");
 
     try {
       const response = await fetch("/api/send", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${(session as any).accessToken}`,
-        },
-        body: JSON.stringify({ to, cc, bcc, subject, message }), // Ideally api/send needs updating to handle cc/bcc
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to,
+          cc,
+          bcc,
+          subject,
+          message,
+          isHtml: true,
+          ...(replyTo ? {
+            threadId: replyTo.threadId,
+            inReplyTo: replyTo.messageId || undefined,
+            references: replyTo.references || undefined,
+          } : {}),
+        }),
       });
 
-      if (response.ok) {
-        setTo("");
-        setCc("");
-        setBcc("");
-        setShowCc(false);
-        setShowBcc(false);
-        setSubject("");
-        setMessage("");
-        setWindowState("default");
-        onClose();
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setSendError(data.error || "Could not send the email. Please try again.");
+        return;
       }
-    } catch (error) {
-      console.log("Failed to send:", error);
+
+      setTo("");
+      setCc("");
+      setBcc("");
+      setShowCc(false);
+      setShowBcc(false);
+      setSubject("");
+      setMessage("");
+      setWindowState("default");
+      onClose();
+    } catch {
+      setSendError("Could not reach the server. Check your connection.");
     } finally {
       setIsSending(false);
     }
@@ -220,7 +232,8 @@ export default function ComposeModal({
             )}
           </div>
 
-          <div>
+          <div className="flex items-center gap-3">
+            {sendError && <span role="alert" className="text-rose-400 text-xs font-medium max-w-[260px] text-right">{sendError}</span>}
             <button
               onClick={handleSend}
               disabled={isSending || !to.trim() || !message.trim()}
@@ -297,8 +310,8 @@ export default function ComposeModal({
         <div className="px-6 py-2 border-b border-zinc-800/60 flex items-center gap-2 group transition-colors">
           <span className="text-zinc-500 text-[13px] font-bold uppercase tracking-widest w-10 shrink-0">From</span>
           <div className="flex-1 bg-transparent text-zinc-400 text-sm outline-none h-8 flex items-center gap-2">
-            <span className="font-bold text-zinc-200">{session?.user?.name || "Yash Nirwan"}</span>
-            <span className="text-zinc-600 hidden sm:inline">&bull; {(session?.user?.email || "yashnirwan18@gmail.com")}</span>
+            <span className="font-bold text-zinc-200">{session?.user?.name || session?.user?.email}</span>
+            {session?.user?.name && <span className="text-zinc-600 hidden sm:inline">&bull; {session.user.email}</span>}
           </div>
         </div>
 

@@ -10,10 +10,11 @@ import LandingPage from "@/components/LandingPage";
 import SmartLabelModal from "@/components/SmartLabelModal";
 import ToDoDashboard from "@/components/ToDoDashboard";
 
-import { useSession } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { AI_PROVIDERS, AiProvider, SavedKeys } from "@/lib/ai-providers";
+import { isFolder, type MailAnalysis, type MailItem, type MailMessage, type MailPage } from "@/lib/mail-types";
 import {
   Bot, Mail, Menu, ListTodo, Pencil
 } from "lucide-react";
@@ -23,6 +24,17 @@ const NO_SAVED_KEYS: SavedKeys = {
   openai: { saved: false, hint: "" },
   anthropic: { saved: false, hint: "" },
 };
+
+/** AI fields already on an email, so a reload of the message doesn't drop them. */
+function pickAnalysis(email: MailAnalysis): MailAnalysis {
+  const picked: MailAnalysis = {};
+  if (email.category !== undefined) picked.category = email.category;
+  if (email.summary !== undefined) picked.summary = email.summary;
+  if (email.requires_reply !== undefined) picked.requires_reply = email.requires_reply;
+  if (email.draft_reply !== undefined) picked.draft_reply = email.draft_reply;
+  if (email.appliedLabels !== undefined) picked.appliedLabels = email.appliedLabels;
+  return picked;
+}
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -35,7 +47,16 @@ export default function Home() {
   const [isAiChatOpen, setIsAiChatOpen] = useState(false);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [activeMailbox, setActiveMailbox] = useState("Inbox");
-  const [draftData, setDraftData] = useState({ to: "", subject: "", body: "" });
+  const [draftData, setDraftData] = useState<{
+    to: string;
+    subject: string;
+    body: string;
+    replyTo?: { threadId: string; messageId: string; references: string };
+  }>({ to: "", subject: "", body: "" });
+  // Paging and search for the current mailbox
+  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [currentSearch, setCurrentSearch] = useState("");
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSmartLabelModalOpen, setIsSmartLabelModalOpen] = useState(false);
@@ -50,15 +71,6 @@ export default function Home() {
   const [isScanningTasks, setIsScanningTasks] = useState(false);
   // Prevents flash of dashboard before the API-key check completes
   const [isCheckingKey, setIsCheckingKey] = useState(true);
-
-  // Find a specific header from the list
-  const getHeader = (headers: any[], name: string) => {
-    if (!headers) return "";
-    const header = headers.find(
-      (h) => h.name.toLowerCase() === name.toLowerCase(),
-    );
-    return header ? header.value : "";
-  };
 
   // NEW Helper: Premium Badge Colors based on Category
   const getBadgeStyle = (category: string) => {
@@ -78,49 +90,39 @@ export default function Home() {
     }
   };
 
-  const decodeBase64 = (data: string) => {
-    if (!data) return "";
-    try {
-      // Clean Google Url safe characters
-      const base64 = data.replace(/-/g, "+").replace(/_/g, "/");
-      // gibberish into text
-      return decodeURIComponent(escape(window.atob(base64)));
-    } catch {
-      return "Error decoding email.";
-    }
+  /** Query string for a sidebar entry: a Gmail folder, or one of the user's Smart Labels. */
+  const mailboxParams = (mailbox: string, search: string, pageToken?: string | null) => {
+    const params = new URLSearchParams(isFolder(mailbox) ? { folder: mailbox } : { label: mailbox });
+    if (search.trim()) params.set("q", search.trim());
+    if (pageToken) params.set("pageToken", pageToken);
+    return params;
   };
 
-  // find Actual message
-  const getEmailBody = (payload: any): string => {
-    if (!payload) return "";
-
-    // Simple email
-    if (payload.body && payload.body.data) {
-      return decodeBase64(payload.body.data);
+  /** Fetches a page of emails through our server. Returns null on failure. */
+  const requestMailPage = async (params: URLSearchParams): Promise<MailPage | null> => {
+    const response = await fetch(`/api/gmail/messages?${params}`);
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 401 && data.code === "GMAIL_AUTH") {
+      // Google access was revoked or expired beyond refresh: sign in again
+      signIn("google");
+      return null;
     }
-
-    // Complex email
-    if (payload.parts && payload.parts.length > 0) {
-      const htmlPart = payload.parts.find(
-        (part: any) => part.mimeType === "text/html",
-      );
-      if (htmlPart?.body?.data) return decodeBase64(htmlPart.body.data);
-
-      // No html
-      const textPart = payload.parts.find(
-        (parts: any) => parts.mimeType === "text/plain",
-      );
-      if (textPart?.body?.data) return decodeBase64(textPart.body.data);
-
-      // Recursion inside another folder
-      for (const part of payload.parts) {
-        if (part.mimeType.startsWith("multipart/")) {
-          const nestedBody = getEmailBody(part);
-          if (nestedBody) return nestedBody;
-        }
-      }
+    if (!response.ok) {
+      console.error("Failed to fetch emails:", data.error);
+      return null;
     }
-    return "No readable content found.";
+    return data as MailPage;
+  };
+
+  /** Runs AI sorting on Inbox emails that don't have results yet. */
+  const analyzeNewEmails = async (list: MailItem[], aiReady: boolean) => {
+    if (!aiReady) return;
+    const unsorted = list.filter((e) => !e.summary);
+    if (unsorted.length > 0) {
+      const keyOk = await classifyEmailsBatch(unsorted);
+      if (!keyOk) return;
+    }
+    await extractTasksAndLabelsBatch(list);
   };
 
   const fetchEmails = async (
@@ -128,108 +130,79 @@ export default function Home() {
     searchString = "",
     aiReady: boolean = hasAiKey
   ) => {
-    // Safety Check
-    if (!(session as any)?.accessToken) return;
+    if (mailboxToFetch === "To-do") return;
     setIsFetching(true);
+    setCurrentSearch(searchString);
 
     try {
-      let query = "in:inbox";
-      if (mailboxToFetch === "Starred") query = "is:starred";
-      if (mailboxToFetch === "Sent") query = "in:sent";
-      if (mailboxToFetch === "Draft") query = "is:draft";
-      if (mailboxToFetch === "Spam") query = "in:spam";
-      if (mailboxToFetch === "Trash") query = "in:trash";
+      const page = await requestMailPage(mailboxParams(mailboxToFetch, searchString));
+      if (!page) return;
 
-      // GLOBAL SEARCH ENGINe
-      if (searchString.trim() !== "") {
-        query += ` ${searchString}`;
-      }
+      setEmails(page.emails);
+      setNextPageToken(page.nextPageToken);
 
-      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30&q=${encodeURIComponent(query)}`;
-
-      // Knock on Google's door
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${(session as any).accessToken}` },
-      });
-
-      if (!response.ok) {
-        console.error("Failed to fetch messages. Status:", response.status);
-        setIsFetching(false);
-        return;
-      }
-
-      const data = await response.json();
-
-      if (data.messages && data.messages.length > 0) {
-        const detailedEmails = await Promise.all(
-          data.messages.map(async (msg: any) => {
-            try {
-              const res = await fetch(
-                `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
-                {
-                  headers: {
-                    Authorization: `Bearer ${(session as any).accessToken}`,
-                  },
-                },
-              );
-              if (!res.ok) return null;
-              return await res.json();
-            } catch (err) {
-              console.error("Error fetching message detail:", err);
-              return null;
-            }
-          }),
-        );
-
-        const cleanEmails = detailedEmails
-          .filter((msg: any) => msg && msg.payload && msg.payload.headers)
-          .map((msg: any) => ({
-            id: msg.id,
-            snippet: msg.snippet,
-            subject: getHeader(msg.payload.headers, "Subject"),
-            from: getHeader(msg.payload.headers, "From").split("<")[0].trim(),
-            fromEmail: getHeader(msg.payload.headers, "From").match(/<([^<>]+)>/)?.[1] || getHeader(msg.payload.headers, "From").trim(),
-            date: getHeader(msg.payload.headers, "Date"),
-            body: getEmailBody(msg.payload),
-            isUnread: msg.labelIds?.includes("UNREAD") || false,
-            isStarred: msg.labelIds?.includes("STARRED") || false,
-            to: getHeader(msg.payload.headers, "To"),
-            cc: getHeader(msg.payload.headers, "Cc"),
-            hasAttachment:
-              msg.payload.parts?.some(
-                (part: any) => part.filename && part.filename.length > 0,
-              ) || false,
-          }));
-
-        // 1. Show emails on screen immediately
-        setEmails(cleanEmails);
-        setIsFetching(false);
-
-        // Immediately cache the fetched inbox emails so the NEXT time the user logs in, it loads instantly!
+      const isInbox = mailboxToFetch === "Inbox" && !searchString.trim();
+      if (isInbox) {
         try {
-          if (mailboxToFetch === "Inbox") {
-            localStorage.setItem("mailman_cache_inbox", JSON.stringify(cleanEmails));
-          }
-        } catch (e) {
-          console.error("Could not cache to local storage", e);
+          localStorage.setItem("mailman_cache_inbox_v2", JSON.stringify(page.emails));
+        } catch {
+          // storage full or blocked: the cache is only a speed-up
         }
-
-        // 2. BATCH AUTO-PILOT ENGAGE
-        if (aiReady) {
-          const keyOk = await classifyEmailsBatch(cleanEmails);
-          if (keyOk) await extractTasksAndLabelsBatch(cleanEmails);
-        }
-      } else {
         setIsFetching(false);
-        // Only clear emails if we are sure there are absolutely 0 emails returned
-        if (searchString || mailboxToFetch !== "Inbox") {
-          setEmails([]);
-        }
+        await analyzeNewEmails(page.emails, aiReady);
       }
     } catch (error) {
       console.error("Error in fetchEmails:", error);
+    } finally {
       setIsFetching(false);
     }
+  };
+
+  const loadMoreEmails = async () => {
+    if (!nextPageToken || isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const page = await requestMailPage(mailboxParams(activeMailbox, currentSearch, nextPageToken));
+      if (!page) return;
+      setEmails((prev) => {
+        const seen = new Set(prev.map((e) => e.id));
+        return [...prev, ...page.emails.filter((e) => !seen.has(e.id))];
+      });
+      setNextPageToken(page.nextPageToken);
+      if (activeMailbox === "Inbox" && !currentSearch) await analyzeNewEmails(page.emails, hasAiKey);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  /** Switches the sidebar view and loads it. */
+  const openMailbox = (mailbox: string) => {
+    setActiveMailbox(mailbox);
+    setSelectedEmail(null);
+    if (mailbox === "To-do") return;
+    setEmails([]);
+    setNextPageToken(null);
+    fetchEmails(mailbox);
+  };
+
+  /** Loads the full message (body, attachments, reply headers) for the reading pane. */
+  const loadFullMessage = async (id: string): Promise<MailMessage | null> => {
+    const response = await fetch(`/api/gmail/messages/${id}`);
+    if (!response.ok) return null;
+    return response.json();
+  };
+
+  const handleSelectEmail = async (email: any) => {
+    setSelectedEmail(email);
+    if (email.isUnread) handleEmailAction(email.id, "read");
+    if (email.body !== undefined) return;
+
+    const full = await loadFullMessage(email.id);
+    if (!full) return;
+    // Keep AI results we already have in memory
+    const merged = { ...full, ...pickAnalysis(email), isUnread: false };
+    setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, ...merged } : e)));
+    setSelectedEmail((prev: any) => (prev?.id === email.id ? { ...prev, ...merged } : prev));
   };
 
   // --- ⚡ UPGRADED SAFETY BATCH PROCESSING ---
@@ -318,13 +291,7 @@ export default function Home() {
       const response = await fetch("/api/ai/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          emails: emailList.map(e => ({
-            id: e.id,
-            sender: e.from,
-            content: `Subject: ${e.subject}\n\n${e.body.substring(0, 1000)}`
-          })),
-        }),
+        body: JSON.stringify({ ids: emailList.map((e) => e.id) }),
       });
 
       if (!response.ok) {
@@ -366,9 +333,39 @@ export default function Home() {
     }
   };
 
+  const escapeHtml = (text: string) =>
+    text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  /** Opens Compose as a threaded reply, or as a forward that includes the original. */
+  const startReplyOrForward = (original: MailMessage, mode: "reply" | "forward", body = "") => {
+    const baseSubject = (original.subject || "").replace(/^((re|fwd?):\s*)+/i, "");
+    if (mode === "reply") {
+      setDraftData({
+        to: original.fromEmail || original.from,
+        subject: `Re: ${baseSubject}`,
+        body,
+        replyTo: { threadId: original.threadId, messageId: original.messageId, references: original.references },
+      });
+    } else {
+      const originalBody = original.bodyIsHtml
+        ? original.body
+        : `<div style="white-space:pre-wrap">${escapeHtml(original.body || "")}</div>`;
+      setDraftData({
+        to: "",
+        subject: `Fwd: ${baseSubject}`,
+        body: `<p><br></p><p>---------- Forwarded message ----------</p>`
+          + `<p>From: ${escapeHtml(original.from)} &lt;${escapeHtml(original.fromEmail)}&gt;<br>`
+          + `Date: ${escapeHtml(original.date)}<br>Subject: ${escapeHtml(original.subject)}<br>To: ${escapeHtml(original.to)}</p>`
+          + originalBody,
+      });
+    }
+    setIsComposeOpen(true);
+  };
+
   // Quick action
   const handleEmailAction = async (id: string, action: string) => {
-    if (action === "trash" || action === "archive" || action === "unarchive") {
+    if (action === "tag") return; // labels are applied from the reading pane
+    if (["trash", "untrash", "archive", "unarchive", "spam", "notspam"].includes(action)) {
       setEmails((prev) => prev.filter((email) => email.id !== id));
       if (selectedEmail?.id === id) setSelectedEmail(null);
     } else if (action === "unread") {
@@ -399,38 +396,22 @@ export default function Home() {
       );
       if (selectedEmail?.id === id)
         setSelectedEmail({ ...selectedEmail, isStarred: false });
-    } else if (action === "reply") {
+    } else if (action === "reply" || action === "forward") {
       if (selectedEmail) {
-        const senderEmail = selectedEmail.fromEmail || selectedEmail.from;
-        setDraftData({
-          to: senderEmail,
-          subject: selectedEmail.subject?.startsWith("Re:") ? selectedEmail.subject : `Re: ${selectedEmail.subject}`,
-          body: "",
-        });
-        setIsComposeOpen(true);
+        // Make sure we have the body and reply headers before composing
+        const original = selectedEmail.body !== undefined ? selectedEmail : await loadFullMessage(selectedEmail.id);
+        if (original) startReplyOrForward(original, action);
       }
-      return; // Stop execution here, don't hit /api/action
-    } else if (action === "forward") {
-      if (selectedEmail) {
-        setDraftData({
-          to: "",
-          subject: selectedEmail.subject?.startsWith("Fwd:") ? selectedEmail.subject : `Fwd: ${selectedEmail.subject}`,
-          body: "",
-        });
-        setIsComposeOpen(true);
-      }
-      return; // Stop execution here
+      return; // compose only, nothing to change in Gmail yet
     }
 
     try {
-      await fetch("/api/action", {
+      const response = await fetch("/api/action", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${(session as any).accessToken}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, action }),
       });
+      if (!response.ok) console.error(`Failed to ${action} email`);
     } catch (error) {
       console.error(`Failed to ${action} email:`, error);
     }
@@ -478,16 +459,13 @@ export default function Home() {
     setIsAiThinking(true);
 
     try {
-      const senderName = email.from.split("<")[0].replace(/"/g, "").trim();
-      const senderEmail = email.fromEmail || email.from;
+      const original: MailMessage | null = email.body !== undefined ? email : await loadFullMessage(email.id);
+      if (!original) throw new Error("Could not load the email.");
 
       const response = await fetch("/api/ai/reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          emailBody: email.body,
-          senderName,
-        }),
+        body: JSON.stringify({ emailBody: original.body || original.snippet, senderName: original.from }),
       });
 
       const data = await response.json();
@@ -498,13 +476,12 @@ export default function Home() {
       }
 
       if (data.reply) {
-        setDraftData({
-          to: senderEmail,
-          subject: `Re: ${email.subject.replace(/^(Re:\s*)+/i, "")}`,
-          body: data.reply,
-        });
-
-        setIsComposeOpen(true);
+        // The editor takes HTML: keep the AI's paragraphs
+        const html = String(data.reply)
+          .split(/\n{2,}/)
+          .map((para) => `<p>${escapeHtml(para).replace(/\n/g, "<br>")}</p>`)
+          .join("");
+        startReplyOrForward(original, "reply", html);
       }
     } catch (error) {
       console.error("AI Reply failed:", error);
@@ -549,13 +526,19 @@ export default function Home() {
     }
   };
 
-  const handleViewEmail = (emailId: string) => {
-    const emailToView = emails.find((e) => e.id === emailId);
-    if (emailToView) {
-      setSelectedEmail(emailToView);
-      setActiveMailbox("Inbox"); // Switch away from Dashboard to see the email!
+  /** Opens the email a task came from, even if it isn't in the current list. */
+  const handleViewEmail = async (emailId: string) => {
+    if (activeMailbox === "To-do") openMailbox("Inbox");
+    const inList = emails.find((e) => e.id === emailId);
+    if (inList) {
+      handleSelectEmail(inList);
+      return;
     }
+    const full = await loadFullMessage(emailId);
+    if (full) setSelectedEmail(full);
+    else alert("That email is no longer in your mailbox.");
   };
+
 
   // --- NEW: SMART LABEL HANDLERS ---
   const handleDeleteCustomLabel = async (labelName: string) => {
@@ -584,7 +567,12 @@ export default function Home() {
 
   useEffect(() => {
     const initializeApp = async () => {
-      if ((session as any)?.accessToken && !initializationRef.current) {
+      // Google refused to refresh the token (access revoked): sign in again
+      if ((session as { error?: string } | null)?.error === "RefreshAccessTokenError") {
+        signIn("google");
+        return;
+      }
+      if (session && !initializationRef.current) {
         initializationRef.current = true;
 
         // 1. Fetch User Data from MongoDB First!
@@ -612,7 +600,7 @@ export default function Home() {
         setIsCheckingKey(false);
 
         // 2. Load the super-fast UI cached emails
-        const cached = localStorage.getItem("mailman_cache_inbox");
+        const cached = localStorage.getItem("mailman_cache_inbox_v2");
         if (cached) {
           try {
             setEmails(JSON.parse(cached));
@@ -655,12 +643,7 @@ export default function Home() {
             onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             onCompose={() => setIsComposeOpen(true)}
             activeMailbox={activeMailbox}
-            onSelectMailbox={(folderName) => {
-              setActiveMailbox(folderName);
-              setSelectedEmail(null);
-              setEmails([]);
-              fetchEmails(folderName);
-            }}
+            onSelectMailbox={openMailbox}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenSmartLabelModal={() => setIsSmartLabelModalOpen(true)}
             customLabels={customLabels}
@@ -703,8 +686,12 @@ export default function Home() {
               <EmailFeed
                 emails={emails}
                 selectedEmail={selectedEmail}
-                onSelect={setSelectedEmail}
-                onRefresh={fetchEmails}
+                onSelect={handleSelectEmail}
+                onRefresh={() => fetchEmails(activeMailbox, currentSearch)}
+                hasMore={Boolean(nextPageToken)}
+                isLoadingMore={isLoadingMore}
+                onLoadMore={loadMoreEmails}
+                mailboxName={activeMailbox}
                 isSyncing={isFetching}
                 onOpenAi={() => setIsAiChatOpen(!isAiChatOpen)}
                 onAction={handleEmailAction}
@@ -775,6 +762,7 @@ export default function Home() {
             defaultTo={draftData.to}
             defaultSubject={draftData.subject}
             defaultBody={draftData.body}
+            replyTo={draftData.replyTo}
           />
         )}
 
@@ -815,7 +803,7 @@ export default function Home() {
             <span className="text-[10px] font-bold">Menu</span>
           </button>
           <button
-            onClick={() => { setActiveMailbox("Inbox"); setSelectedEmail(null); }}
+            onClick={() => openMailbox("Inbox")}
             className={`flex flex-col items-center gap-1 transition px-3 py-2 ${activeMailbox === "Inbox" ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-slate-400"
               }`}
           >
@@ -830,7 +818,7 @@ export default function Home() {
             <span className="text-[10px] font-bold">Compose</span>
           </button>
           <button
-            onClick={() => { setActiveMailbox("To-do"); setSelectedEmail(null); }}
+            onClick={() => openMailbox("To-do")}
             className={`flex flex-col items-center gap-1 transition px-3 py-2 ${activeMailbox === "To-do" ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-slate-400"
               }`}
           >

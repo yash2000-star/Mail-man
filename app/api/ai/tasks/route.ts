@@ -1,23 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import EmailAnalysis from "@/models/EmailAnalysis";
-import { getSessionEmail } from "@/lib/auth";
+import { bodyText, getGmailAuth, getMailMessage, GmailError } from "@/lib/gmail";
 import { getUserAi } from "@/lib/user-ai";
 import { generateText, parseJsonArray } from "@/lib/ai";
-import { aiErrorResponse, noAiKey, unauthorized } from "@/lib/api-response";
+import { aiErrorResponse, gmailAuthRequired, noAiKey } from "@/lib/api-response";
 
 export const maxDuration = 60;
 
 const MAX_EMAILS = 30;
 const MAX_CONTENT_CHARS = 2000;
-
-interface EmailInput {
-  id: string;
-  sender?: string;
-  content?: string;
-}
 
 interface ExtractedTask {
   title: string;
@@ -32,29 +26,31 @@ interface TaskResult {
   appliedLabels?: string[];
 }
 
-export async function POST(req: Request) {
-  const userEmail = await getSessionEmail();
-  if (!userEmail) return unauthorized();
+/** POST { ids: string[] }: extract tasks and Smart Labels for these emails. */
+export async function POST(req: NextRequest) {
+  const auth = await getGmailAuth(req);
+  if (!auth) return gmailAuthRequired();
+  const userEmail = auth.email;
 
   try {
     const body = await req.json();
-    const emails: EmailInput[] = Array.isArray(body?.emails)
-      ? body.emails.filter((e: EmailInput) => e && typeof e.id === "string").slice(0, MAX_EMAILS)
+    const ids: string[] = Array.isArray(body?.ids)
+      ? body.ids.filter((id: unknown) => typeof id === "string" && /^[a-zA-Z0-9]+$/.test(id)).slice(0, MAX_EMAILS)
       : [];
-    if (emails.length === 0) return NextResponse.json([]);
+    if (ids.length === 0) return NextResponse.json([]);
 
     await dbConnect();
 
     // 1. Skip emails we've already extracted tasks from
     const existing = await EmailAnalysis.find({
-      emailId: { $in: emails.map((e) => e.id) },
+      emailId: { $in: ids },
       userEmail,
       tasks_extracted: true,
     });
     const cached = existing.map((a) => ({ id: a.emailId, appliedLabels: a.appliedLabels || [] }));
     const cachedIds = new Set(cached.map((c) => c.id));
-    const toProcess = emails.filter((e) => !cachedIds.has(e.id));
-    if (toProcess.length === 0) return NextResponse.json(cached);
+    const toProcessIds = ids.filter((id) => !cachedIds.has(id));
+    if (toProcessIds.length === 0) return NextResponse.json(cached);
 
     const ai = await getUserAi(userEmail);
     if (!ai) return noAiKey();
@@ -67,9 +63,16 @@ export async function POST(req: Request) {
     const labels = (user?.customLabels ?? []).map((l) => ({ name: l.name, rule: l.prompt }));
     const labelNames = new Set(labels.map((l) => l.name));
 
-    // 2. Ask the AI for tasks and labels in one batch
+    // 2. Read the emails from Gmail (server-side, so the content can't be spoofed)
+    const toProcess = (await Promise.all(toProcessIds.map((id) =>
+      getMailMessage(auth.accessToken, id).catch((error) => {
+        if (error instanceof GmailError && error.status === 404) return null; // deleted meanwhile
+        throw error;
+      }),
+    ))).filter((m) => m !== null);
+    if (toProcess.length === 0) return NextResponse.json(cached);
     const emailList = toProcess
-      .map((e) => `EMAIL_ID: ${e.id}\nSENDER: ${e.sender ?? "Unknown"}\nCONTENT: ${(e.content ?? "").slice(0, MAX_CONTENT_CHARS)}\n---`)
+      .map((e) => `EMAIL_ID: ${e.id}\nSENDER: ${e.from} <${e.fromEmail}>\nSUBJECT: ${e.subject}\nCONTENT: ${bodyText(e, MAX_CONTENT_CHARS)}\n---`)
       .join("\n\n");
 
     const prompt = `Today's date and time is ${new Date().toISOString()}.

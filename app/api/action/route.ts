@@ -1,59 +1,38 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { getGmailAuth, gmailFetch } from "@/lib/gmail";
+import { gmailAuthRequired, gmailErrorResponse } from "@/lib/api-response";
 
-export async function POST(req: Request) {
+// Each action is a Gmail label change on the message
+const ACTIONS: Record<string, { add?: string[]; remove?: string[] }> = {
+    archive: { remove: ["INBOX"] },
+    unarchive: { add: ["INBOX"] },
+    trash: { add: ["TRASH"], remove: ["INBOX"] },
+    untrash: { add: ["INBOX"], remove: ["TRASH"] },
+    spam: { add: ["SPAM"], remove: ["INBOX"] },
+    notspam: { add: ["INBOX"], remove: ["SPAM"] },
+    read: { remove: ["UNREAD"] },
+    unread: { add: ["UNREAD"] },
+    star: { add: ["STARRED"] },
+    unstar: { remove: ["STARRED"] },
+};
+
+export async function POST(req: NextRequest) {
+    const auth = await getGmailAuth(req);
+    if (!auth) return gmailAuthRequired();
+
     try {
-        const authHeader = req.headers.get("authorization");
-        if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
         const { id, action } = await req.json();
-
-        let addLabelIds: string[] = [];
-        let removeLabelIds: string[] = [];
-
-        if (action === "trash") {
-            addLabelIds = ["TRASH"];
-            removeLabelIds = ["INBOX"];
-        } else if (action === "archive") {
-            removeLabelIds = ["INBOX"];
-        } else if (action === "unarchive") {
-            addLabelIds = ["INBOX"];
-        } else if (action === "unread") {
-            addLabelIds = ["UNREAD"];
-        } else if (action === "read") {
-            removeLabelIds = ["UNREAD"];
-        } else if (action === "star") {
-            addLabelIds = ["STARRED"];
-        } else if (action === "unstar") {
-            removeLabelIds = ["STARRED"];
+        const change = typeof action === "string" ? ACTIONS[action] : undefined;
+        if (typeof id !== "string" || !/^[a-zA-Z0-9]+$/.test(id) || !change) {
+            return NextResponse.json({ error: "Invalid action" }, { status: 400 });
         }
 
-        // Safety check: if neither array has any label IDs, there is nothing to send to Google.
-        // Calling the API with both arrays empty causes a 400 "No label add or removes specified" error.
-        const cleanAdd = addLabelIds.filter(Boolean);
-        const cleanRemove = removeLabelIds.filter(Boolean);
-
-        if (cleanAdd.length === 0 && cleanRemove.length === 0) {
-            return NextResponse.json({ success: true, skipped: true });
-        }
-
-        const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}/modify`, {
+        await gmailFetch(auth.accessToken, `messages/${id}/modify`, {
             method: "POST",
-            headers: {
-                "Authorization": authHeader,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ addLabelIds: cleanAdd, removeLabelIds: cleanRemove }),
+            body: JSON.stringify({ addLabelIds: change.add ?? [], removeLabelIds: change.remove ?? [] }),
         });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error("GOOGLE API EXACT ERROR:", errorData);
-            throw new Error(`Google rejected the action: ${errorData.error?.message || "Unknown error"}`);
-        }
-
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error("Action Error", error);
-        return NextResponse.json({ error: "Action failed " }, { status: 500 });
+        return gmailErrorResponse(error, "Email action failed");
     }
 }

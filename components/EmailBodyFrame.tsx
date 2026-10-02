@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 interface EmailBodyFrameProps {
   html: string;
   title?: string;
+  /** Whether the body is HTML; guessed from the content when not given */
+  isHtml?: boolean;
 }
 
 const escapeHtml = (text: string) =>
@@ -28,12 +30,12 @@ const looksLikeHtml = (body: string) => /<[a-z!/][\s\S]*>/i.test(body);
  * alongside it. The CSP meta tag is a second layer in case the sandbox is
  * ever loosened.
  */
-export default function EmailBodyFrame({ html, title = "Email content" }: EmailBodyFrameProps) {
+export default function EmailBodyFrame({ html, title = "Email content", isHtml }: EmailBodyFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(200);
 
   const srcDoc = useMemo(() => {
-    const content = looksLikeHtml(html)
+    const content = (isHtml ?? looksLikeHtml(html))
       ? html
       : `<pre style="white-space:pre-wrap;font-family:inherit;margin:0">${escapeHtml(html)}</pre>`;
 
@@ -52,7 +54,7 @@ export default function EmailBodyFrame({ html, title = "Email content" }: EmailB
 </head>
 <body>${content}</body>
 </html>`;
-  }, [html]);
+  }, [html, isHtml]);
 
   useEffect(() => {
     const iframe = iframeRef.current;

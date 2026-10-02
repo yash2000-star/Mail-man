@@ -6,7 +6,7 @@ import GoogleProvider from 'next-auth/providers/google'
  * `accessToken` and `accessTokenExpires`. If an error occurs,
  * returns the old token and an error property
  */
-async function refreshAccessToken(token: any) {
+export async function refreshAccessToken(token: any) {
     try {
         const url =
             "https://oauth2.googleapis.com/token?" +
@@ -84,7 +84,8 @@ export const authOptions: NextAuthOptions = {
             return refreshAccessToken(token)
         },
         async session({ session, token }: any) {
-            session.accessToken = token.accessToken
+            // The Google access token stays server-side (see lib/gmail.ts);
+            // the browser only learns whether it needs to sign in again.
             session.error = token.error
             return session
         }

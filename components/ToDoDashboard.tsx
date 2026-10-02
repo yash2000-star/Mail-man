@@ -1,5 +1,6 @@
 "use client";
 
+import { useSession } from "next-auth/react";
 import { useState } from "react";
 // Added 'Check' to the imports!
 import { Clock, Info, ThumbsDown, Trash2, Sparkles, Check, ListFilter } from "lucide-react";
@@ -22,6 +23,7 @@ export default function ToDoDashboard({
   onScan,
   isScanning = false
 }: ToDoDashboardProps) {
+  const { data: session } = useSession();
   const [activeTab, setActiveTab] = useState("active");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
@@ -101,7 +103,7 @@ export default function ToDoDashboard({
                   <div className="flex flex-col pt-3 pb-1">
                     <span className="text-[10px] text-zinc-600 font-black uppercase tracking-widest px-4 mb-2">Email Account</span>
                     <button className="flex items-center justify-between w-full px-4 py-2 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition rounded-lg" onClick={() => setIsFilterOpen(false)}>
-                      <span className="truncate">yashnirwan18@gmail.com</span>
+                      <span className="truncate">{session?.user?.email}</span>
                     </button>
                   </div>
                 </div>

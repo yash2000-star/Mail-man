@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { Key, Check, ShieldAlert, ArrowRight } from "lucide-react";
 import { AI_PROVIDERS, AiProvider, PROVIDER_KEY_INFO, PROVIDER_LABELS } from "@/lib/ai-providers";
+import type { MailItem, MailPage } from "@/lib/mail-types";
 
 const KEY_FIELD: Record<AiProvider, string> = {
     gemini: "geminiApiKey",
@@ -21,7 +22,7 @@ const LOADING_MESSAGES = [
 ];
 
 export default function SetupPage() {
-    const { data: session, status } = useSession();
+    const { status } = useSession();
     const router = useRouter();
 
     const [provider, setProvider] = useState<AiProvider>("gemini");
@@ -87,91 +88,44 @@ export default function SetupPage() {
             });
             if (!saveRes.ok) throw new Error("Failed to save API key.");
 
-            // Step 2: Fetch top 5 inbox emails from Gmail
-            const accessToken = (session as any)?.accessToken;
-            if (!accessToken) throw new Error("No access token.");
+            // Step 2: Fetch the newest inbox emails (through our server)
+            const listRes = await fetch("/api/gmail/messages?folder=Inbox");
+            if (!listRes.ok) throw new Error("Failed to fetch emails.");
+            const listData: MailPage = await listRes.json();
+            let preloadedEmails: MailItem[] = listData.emails;
 
-            const gmailRes = await fetch(
-                "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5&q=in:inbox",
-                { headers: { Authorization: `Bearer ${accessToken}` } }
-            );
-            if (!gmailRes.ok) throw new Error("Failed to fetch emails.");
+            // Step 3: Classify those emails
+            if (preloadedEmails.length > 0) {
+                const classifyPayload = preloadedEmails.slice(0, 10).map((e) => ({
+                    id: e.id,
+                    sender: e.from,
+                    snippet: e.snippet,
+                }));
 
-            const gmailData = await gmailRes.json();
-            let preloadedEmails: any[] = [];
-
-            if (gmailData.messages && gmailData.messages.length > 0) {
-                const detailPromises = gmailData.messages.map(async (msg: any) => {
-                    try {
-                        const res = await fetch(
-                            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
-                            { headers: { Authorization: `Bearer ${accessToken}` } }
-                        );
-                        if (!res.ok) return null;
-                        return await res.json();
-                    } catch {
-                        return null;
-                    }
+                const classifyRes = await fetch("/api/classify", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ emails: classifyPayload }),
                 });
 
-                const detailedMsgs = await Promise.all(detailPromises);
-
-                const getHeader = (headers: any[], name: string) => {
-                    const h = headers?.find((h: any) => h.name.toLowerCase() === name.toLowerCase());
-                    return h ? h.value : "";
-                };
-
-                preloadedEmails = detailedMsgs
-                    .filter((m: any) => m && m.payload && m.payload.headers)
-                    .map((m: any) => ({
-                        id: m.id,
-                        snippet: m.snippet,
-                        subject: getHeader(m.payload.headers, "Subject"),
-                        from: getHeader(m.payload.headers, "From").split("<")[0].trim(),
-                        fromEmail: getHeader(m.payload.headers, "From").match(/<([^<>]+)>/)?.[1] || getHeader(m.payload.headers, "From").trim(),
-                        date: getHeader(m.payload.headers, "Date"),
-                        isUnread: m.labelIds?.includes("UNREAD") || false,
-                        isStarred: m.labelIds?.includes("STARRED") || false,
-                        to: getHeader(m.payload.headers, "To"),
-                        cc: getHeader(m.payload.headers, "Cc"),
-                        hasAttachment: m.payload.parts?.some(
-                            (p: any) => p.filename && p.filename.length > 0
-                        ) || false,
-                    }));
-
-                // Step 3: Classify those emails
-                if (preloadedEmails.length > 0) {
-                    const classifyPayload = preloadedEmails.map((e) => ({
-                        id: e.id,
-                        sender: e.from,
-                        snippet: e.snippet,
-                    }));
-
-                    const classifyRes = await fetch("/api/classify", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ emails: classifyPayload }),
-                    });
-
-                    // This first AI call doubles as a check that the key works
-                    if (!classifyRes.ok) {
-                        const data = await classifyRes.json().catch(() => ({}));
-                        if (data.code === "invalid_key") throw new Error(data.error);
-                    } else {
-                        const classifyData = await classifyRes.json();
-                        if (Array.isArray(classifyData)) {
-                            preloadedEmails = preloadedEmails.map((email) => {
-                                const match = classifyData.find((r: any) => r.id === email.id);
-                                return match ? { ...email, ...match } : email;
-                            });
-                        }
+                // This first AI call doubles as a check that the key works
+                if (!classifyRes.ok) {
+                    const data = await classifyRes.json().catch(() => ({}));
+                    if (data.code === "invalid_key") throw new Error(data.error);
+                } else {
+                    const classifyData = await classifyRes.json();
+                    if (Array.isArray(classifyData)) {
+                        preloadedEmails = preloadedEmails.map((email) => {
+                            const match = classifyData.find((r: any) => r.id === email.id);
+                            return match ? { ...email, ...match } : email;
+                        });
                     }
                 }
             }
 
             // Step 4: Cache to localStorage so dashboard loads instantly
             try {
-                localStorage.setItem("mailman_cache_inbox", JSON.stringify(preloadedEmails));
+                localStorage.setItem("mailman_cache_inbox_v2", JSON.stringify(preloadedEmails));
             } catch { }
 
             // Step 5: Show saved ✓ then redirect

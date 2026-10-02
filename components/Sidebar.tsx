@@ -290,7 +290,7 @@ export default function Sidebar({
               {!isCollapsed && (
                 <div className="flex flex-col truncate pr-2">
                   <span className="text-sm font-bold text-zinc-100 truncate">
-                    {session?.user?.name || "Yash Nirwan"}
+                    {session?.user?.name || session?.user?.email}
                   </span>
                   <span className="text-[10px] text-amber-500 font-bold uppercase tracking-widest">Free Plan</span>
                 </div>
