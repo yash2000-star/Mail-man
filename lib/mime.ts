@@ -57,6 +57,12 @@ export function htmlToText(html: string): string {
         .trim();
 }
 
+export interface OutgoingAttachment {
+    filename: string;
+    mimeType: string;
+    data: Buffer;
+}
+
 export interface OutgoingMessage {
     to: string[];
     cc?: string[];
@@ -69,10 +75,38 @@ export interface OutgoingMessage {
     /** Message-ID of the email being replied to */
     inReplyTo?: string;
     references?: string;
+    attachments?: OutgoingAttachment[];
+}
+
+const SAFE_MIME_TYPE = /^[\w.+-]+\/[\w.+-]+$/;
+
+/** Filename for a header: no characters that could break out of the quotes. */
+function safeFilename(name: string): string {
+    return name.replace(/[\r\n"\\]/g, "_").slice(0, 200) || "attachment";
+}
+
+function attachmentPart(attachment: OutgoingAttachment): string[] {
+    const name = safeFilename(attachment.filename);
+    const asciiName = name.replace(/[^\x20-\x7e]/g, "_");
+    const encodedName = encodeURIComponent(name);
+    const type = SAFE_MIME_TYPE.test(attachment.mimeType) ? attachment.mimeType : "application/octet-stream";
+    return [
+        `Content-Type: ${type}; name="${asciiName}"`,
+        // RFC 2231 filename* keeps non-ASCII names intact in modern clients
+        `Content-Disposition: attachment; filename="${asciiName}"; filename*=UTF-8''${encodedName}`,
+        "Content-Transfer-Encoding: base64",
+        "",
+        attachment.data.toString("base64").replace(/.{76}/g, "$&\r\n"),
+    ];
 }
 
 /** Returns the base64url "raw" string Gmail's messages.send expects. */
 export function buildRawMessage(message: OutgoingMessage): string {
+    return Buffer.from(buildMimeMessage(message), "utf-8").toString("base64url");
+}
+
+/** Returns the full RFC 5322 message (for Gmail's upload endpoints). */
+export function buildMimeMessage(message: OutgoingMessage): string {
     for (const value of [message.subject, message.inReplyTo ?? "", message.references ?? ""]) {
         if (HEADER_BREAK.test(value)) throw new MimeError("Invalid header value.");
     }
@@ -117,5 +151,17 @@ export function buildRawMessage(message: OutgoingMessage): string {
         ];
     }
 
-    return Buffer.from([...headers, ...body].join("\r\n"), "utf-8").toString("base64url");
+    if (message.attachments?.length) {
+        const boundary = `mm_${randomBytes(12).toString("hex")}`;
+        body = [
+            `Content-Type: multipart/mixed; boundary="${boundary}"`,
+            "",
+            `--${boundary}`,
+            ...body,
+            ...message.attachments.flatMap((a) => [`--${boundary}`, ...attachmentPart(a)]),
+            `--${boundary}--`,
+        ];
+    }
+
+    return [...headers, ...body].join("\r\n");
 }
