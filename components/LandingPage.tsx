@@ -32,13 +32,13 @@ const BORDER = "border-zinc-800/60";
 const slideUp = (delay = 0, ready = true) => ({
   initial: { opacity: 0, y: 60 },
   animate: ready ? { opacity: 1, y: 0 } : { opacity: 0, y: 60 },
-  transition: { duration: 1.8, ease: [0.16, 1, 0.3, 1] as const, delay: delay + 2.8 },
+  transition: { duration: 1.0, ease: [0.16, 1, 0.3, 1] as const, delay },
 });
 
 const fadeIn = (delay = 0, ready = true) => ({
   initial: { opacity: 0 },
   animate: ready ? { opacity: 1 } : { opacity: 0 },
-  transition: { duration: 1.0, ease: "easeOut" as const, delay: delay + 2.8 },
+  transition: { duration: 0.8, ease: "easeOut" as const, delay },
 });
 
 const inView = (delay = 0) => ({
@@ -56,9 +56,9 @@ function PreloaderOverlay({ onDone }: { onDone: () => void }) {
       initial={{ y: "0%" }}
       animate={{ y: "-100%" }}
       transition={{
-        duration: 2.0,
+        duration: 0.9,
         ease: [0.65, 0, 0.35, 1],
-        delay: 4.8,
+        delay: 1.3,
       }}
       onAnimationComplete={onDone}
     >
@@ -68,8 +68,8 @@ function PreloaderOverlay({ onDone }: { onDone: () => void }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: [0, 1, 1, 0] }}
         transition={{
-          duration: 4.8,
-          times: [0, 0.167, 0.688, 1], // fade-in 0.8s → hold 2.5s → fade-out 1.5s
+          duration: 1.5,
+          times: [0, 0.25, 0.7, 1], // quick fade in, short hold, fade out
           ease: "easeInOut",
         }}
       >
@@ -84,22 +84,27 @@ function PreloaderOverlay({ onDone }: { onDone: () => void }) {
   );
 }
 
+const GITHUB_URL = "https://github.com/yash2000-star/Mail-man";
+
+// Full page load for /demo so the demo's sample backend starts fresh
+const NAV_LINKS: [string, string][] = [["Features", "#features"], ["Live demo", "/demo"], ["GitHub", GITHUB_URL]];
+
 // ── FAQ data ─────────────────────────────────────────────────────────
 const FAQS = [
-  { q: "How does Mail-man handle my email data?", a: "We never store your emails. All content is processed in-memory via your own API key and never persisted on our servers. Your privacy is absolute." },
-  { q: "Can I use my own AI keys?", a: "Yes — Mail-man is Bring Your Own Key (BYOK). Paste your Gemini, OpenAI, or Anthropic key in settings and you're live in seconds." },
-  { q: "Is there a free tier?", a: "The free plan includes full Gmail access, up to 30 emails, and Smart Labels. Unlimited processing unlocks with your own API key — completely free." },
-  { q: "How fast is classification?", a: "Classification happens in seconds per email. Batch processing of 30 emails typically completes in under 2 minutes." },
+  { q: "What does Mail-man store about my email?", a: "Your emails stay in Gmail; Mail-man doesn't keep copies of them. It stores only what its features need: AI summaries, suggested replies, Smart Labels and to-dos, plus your AI API keys, encrypted. The Privacy Policy has the details." },
+  { q: "Can I use my own AI keys?", a: "Yes. Mail-man works with a Google Gemini, OpenAI (ChatGPT) or Anthropic (Claude) key. Add one in settings and every AI feature uses it. Keys stay on the server and are never sent back to your browser." },
+  { q: "Does it cost anything?", a: "Mail-man itself is free, and all of its code is on GitHub. AI usage is billed by your AI provider to your own key; Gemini has a free tier that is enough to try everything." },
+  { q: "Can I try it without connecting Gmail?", a: "Yes. The live demo runs the full app on a sample inbox, with no sign-in and no API key needed." },
 ];
 
 // ── Horizontal scroll features ───────────────────────────────────────
 const FEAT_CARDS = [
-  { num: "01", title: "Contextual\nCategorization", body: "AI reads full thread context — not just subject lines — to place every email in exactly the right label. Zero rule-writing required.", accent: "amber" },
-  { num: "02", title: "Mood &\nTone Analysis", body: "Detects urgency, sentiment, and emotional cues so you always know which emails need your attention first.", accent: "amber" },
-  { num: "03", title: "Inbox\nDetox Mode", body: "One click silences newsletters, cold outreach, and notifications — leaving only the emails that actually matter.", accent: "amber" },
-  { num: "04", title: "Chat\nwith Inbox", body: "Ask plain-English questions about your threads. 'What did Sarah say about the proposal?' — answered instantly.", accent: "amber" },
-  { num: "05", title: "Task\nExtraction", body: "AI pulls deadlines and action items from every email directly into your Master To-Do dashboard.", accent: "amber" },
-  { num: "06", title: "Multi-Model\nHub", body: "Switch between Gemini, GPT-4o, and Claude with one click. Your key, your model, your rules — always.", accent: "amber" },
+  { num: "01", title: "Smart\nInbox", body: "Every email is sorted into Important, Social, Promotions or General and gets a one-line summary, so you can triage at a glance.", accent: "amber" },
+  { num: "02", title: "Suggested\nReplies", body: "Emails that need an answer get a draft reply. Send it in one click, or open it in the composer and refine it with AI.", accent: "amber" },
+  { num: "03", title: "Smart\nLabels", body: "Describe a label in plain English (\"invoices and receipts\") and the AI applies it to matching mail, including your recent inbox.", accent: "amber" },
+  { num: "04", title: "Chat\nwith Inbox", body: "Ask plain-English questions about your recent mail. \"What did Sarah say about the proposal?\"", accent: "amber" },
+  { num: "05", title: "Task\nExtraction", body: "Action items and deadlines are pulled from emails into a to-do dashboard, grouped by what's overdue, today and upcoming.", accent: "amber" },
+  { num: "06", title: "Any AI\nProvider", body: "Bring a Gemini, ChatGPT or Claude key. Every feature works with whichever one you have.", accent: "amber" },
 ];
 
 // ── FAQ item ─────────────────────────────────────────────────────────
@@ -196,10 +201,24 @@ export default function LandingPage() {
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [heroReady, setHeroReady] = useState(false);
+  // The intro plays once per visit, and never for people who prefer reduced motion
+  const [skipIntro] = useState(() => {
+    try {
+      return sessionStorage.getItem("mailman-intro-seen") === "1"
+        || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    } catch {
+      return false;
+    }
+  });
+  const [heroReady, setHeroReady] = useState(skipIntro);
 
   const handlePreloaderDone = () => {
     setHeroReady(true);
+    try {
+      sessionStorage.setItem("mailman-intro-seen", "1");
+    } catch {
+      // storage blocked: the intro just plays again next time
+    }
   };
 
 
@@ -213,7 +232,7 @@ export default function LandingPage() {
     <div className={`min-h-screen text-white ${jakarta.className}`} style={{ background: BG }}>
 
       {/* ── PRELOADER ───────────────────────────────────────────── */}
-      <PreloaderOverlay onDone={handlePreloaderDone} />
+      {!skipIntro && <PreloaderOverlay onDone={handlePreloaderDone} />}
 
       {/* ── NAVBAR ─────────────────────────────────────────────── */}
       <nav className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${isScrolled ? "border-b border-zinc-800/60 bg-zinc-950/95 backdrop-blur-md" : ""}`}>
@@ -228,9 +247,9 @@ export default function LandingPage() {
 
           {/* Desktop links */}
           <div className="hidden md:flex items-center gap-8">
-            {["Features", "Pricing", "Blog"].map(l => (
-              <a key={l} href={`#${l.toLowerCase()}`} className="text-xs font-medium tracking-wide text-zinc-500 hover:text-white transition-colors duration-150">
-                {l}
+            {NAV_LINKS.map(([label, href]) => (
+              <a key={label} href={href} className="text-xs font-medium tracking-wide text-zinc-500 hover:text-white transition-colors duration-150">
+                {label}
               </a>
             ))}
           </div>
@@ -269,9 +288,9 @@ export default function LandingPage() {
             className="fixed top-16 inset-x-0 z-40 border-b border-zinc-800 bg-zinc-950"
           >
             <div className="max-w-7xl mx-auto px-8 py-6 flex flex-col gap-5">
-              {["Features", "Pricing", "Blog"].map(l => (
-                <a key={l} href={`#${l.toLowerCase()}`} onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">{l}</a>
+              {NAV_LINKS.map(([label, href]) => (
+                <a key={label} href={href} onClick={() => setIsMobileMenuOpen(false)}
+                  className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">{label}</a>
               ))}
               <button
                 onClick={() => signIn("google")}
@@ -318,7 +337,7 @@ export default function LandingPage() {
 
             {/* Sub-headline */}
             <motion.p {...slideUp(0.22, heroReady)} className="text-zinc-400 text-lg font-normal leading-relaxed max-w-xl mb-10">
-              Mail-man uses your own AI key to categorize, summarize, and detox your Gmail — with zero emails ever stored on our servers.
+              Mail-man connects to your Gmail and uses your own AI key to sort, summarize and draft replies, track your to-dos, and answer questions about your inbox.
             </motion.p>
 
             {/* CTA row */}
@@ -339,14 +358,14 @@ export default function LandingPage() {
                 Connect Gmail Free
                 <ArrowRight size={14} strokeWidth={2.5} className="group-hover:translate-x-0.5 transition-transform duration-200" />
               </button>
-              <a href="#features" className="flex items-center gap-2 text-zinc-600 hover:text-zinc-300 text-xs font-medium tracking-wide transition-colors duration-150">
-                See how it works <ChevronRight size={12} strokeWidth={2} />
+              <a href="/demo" className="flex items-center gap-2 px-6 py-3.5 rounded-full border border-zinc-700 text-zinc-200 hover:text-white hover:border-zinc-500 text-sm font-bold tracking-wide transition-colors duration-150">
+                Try the live demo <ChevronRight size={14} strokeWidth={2} />
               </a>
             </motion.div>
 
             {/* Trust strip */}
             <motion.div {...fadeIn(0.5, heroReady)} className={`flex flex-wrap items-center justify-center gap-x-8 gap-y-3 pt-10 border-t ${BORDER} w-full`}>
-              {["No emails stored · ever", "Bring your own AI key", "Gmail OAuth secured", "Free to start"].map((t, i) => (
+              {["Gemini, ChatGPT or Claude", "Keys encrypted, server-side only", "Gmail via Google sign-in", "Free, with code on GitHub"].map((t, i) => (
                 <span key={i} className="flex items-center gap-2 text-[11px] font-medium text-zinc-600 uppercase tracking-wide">
                   <span className="w-1 h-1 bg-amber-500 rounded-full" />
                   {t}
@@ -363,9 +382,9 @@ export default function LandingPage() {
         <section className={`border-t border-b ${BORDER}`}>
           <div className="max-w-7xl mx-auto px-8 md:px-14 grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-zinc-800/60">
             {[
-              { num: "0", label: "Emails stored on our servers" },
-              { num: "95%", label: "Time saved on email triage" },
-              { num: "$0", label: "Monthly cost with your own key" },
+              { num: "$0", label: "To use, with your own AI key" },
+              { num: "3", label: "AI providers: Gemini, ChatGPT, Claude" },
+              { num: "0", label: "Ads, trackers or analytics" },
             ].map((s, i) => (
               <motion.div key={s.label} {...inView(i * 0.1)} className="py-16 px-8 first:pl-0 last:pr-0">
                 <p className="text-5xl md:text-6xl font-light tracking-tighter text-white mb-3">{s.num}</p>
@@ -496,65 +515,32 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto px-8 md:px-14">
             <motion.div {...inView()} className="mb-20">
               <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-5">Pricing</p>
-              <h2 className={`${serif.className} text-4xl md:text-5xl font-normal tracking-[0.02em] text-white`}>Simple, honest pricing.</h2>
+              <h2 className={`${serif.className} text-4xl md:text-5xl font-normal tracking-[0.02em] text-white`}>Free to use.</h2>
             </motion.div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border border-zinc-800/60">
-              {/* Local */}
-              <motion.div {...inView(0)} className={`p-10 border-r ${BORDER}`}>
-                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-8">Local LLMs</p>
+            <motion.div {...inView(0.1)} className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-zinc-800/60">
+              <div className="p-10 bg-zinc-900 border-b md:border-b-0 md:border-r border-zinc-800/60">
+                <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-8">Bring your own key</p>
                 <p className="text-5xl font-light tracking-tighter text-white mb-1">$0</p>
-                <p className="text-xs text-zinc-600 mb-8">/ forever</p>
-                <p className="text-zinc-500 text-sm mb-10 leading-relaxed">Totally free and private on your own hardware.</p>
-                <ul className="space-y-4 mb-10">
-                  {["100% Local Processing", "Absolute Privacy", "Zero Subscription Fees", "Offline Support"].map(f => (
-                    <li key={f} className="flex items-center gap-3 text-sm text-zinc-400">
-                      <Check size={12} className="text-zinc-700" strokeWidth={3} />{f}
-                    </li>
-                  ))}
-                </ul>
-                <button onClick={() => signIn("google")} className={`w-full py-3.5 border ${BORDER} text-zinc-400 hover:text-white hover:border-zinc-600 transition-colors text-xs font-bold uppercase tracking-widest`}>
-                  Get Started Free
+                <p className="text-xs text-zinc-600 mb-6">Mail-man is free; its code is on GitHub</p>
+                <p className="text-zinc-400 text-sm leading-relaxed mb-8">
+                  AI features run on your own Gemini, OpenAI or Anthropic key, and your provider bills you directly for what you use. Gemini has a free tier that covers trying everything.
+                </p>
+                <button onClick={() => signIn("google")} className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-black text-xs font-black uppercase tracking-widest transition-colors">
+                  Connect Gmail
                 </button>
-              </motion.div>
-
-              {/* Cloud — Featured */}
-              <motion.div {...inView(0.1)} className="p-10 bg-zinc-900 relative border-r border-zinc-800/60">
-                <div className="absolute top-4 right-4 bg-amber-500 text-black text-[9px] font-black uppercase tracking-widest px-2.5 py-1">Recommended</div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-8">Cloud LLMs</p>
-                <p className="text-5xl font-light tracking-tighter text-white mb-1">$0</p>
-                <p className="text-xs text-zinc-600 mb-2">/ forever</p>
-                <p className="text-[11px] text-amber-500/80 mb-8 font-medium">Bring your own key. Pay only for what you use.</p>
-                <ul className="space-y-4 mb-10">
-                  {["Gemini / GPT-4o / Claude key", "Unlimited email syncing", "Unlimited Smart Labels", "AI Chat with Inbox", "Master To-Do Dashboard"].map(f => (
+              </div>
+              <div className="p-10">
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-8">Everything included</p>
+                <ul className="space-y-4">
+                  {["Smart inbox with summaries", "Suggested and AI-written replies", "Smart Labels and Needs Reply", "Conversations, drafts and attachments", "AI chat with your inbox", "To-do dashboard with due dates"].map(f => (
                     <li key={f} className="flex items-center gap-3 text-sm text-zinc-300">
                       <Check size={12} className="text-amber-500" strokeWidth={3} />{f}
                     </li>
                   ))}
                 </ul>
-                <button onClick={() => signIn("google")} className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-black text-xs font-black uppercase tracking-widest transition-colors">
-                  Connect API Key
-                </button>
-              </motion.div>
-
-              {/* Managed */}
-              <motion.div {...inView(0.2)} className="p-10 opacity-50">
-                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-8">Managed Cloud</p>
-                <p className="text-3xl font-light tracking-tighter text-zinc-500 mt-4 mb-1">Coming Soon</p>
-                <p className="text-xs text-zinc-700 mb-8">/ pricing TBD</p>
-                <p className="text-zinc-600 text-sm mb-10 leading-relaxed">For users who don&apos;t want to manage their own API keys.</p>
-                <ul className="space-y-4 mb-10">
-                  {["One flat monthly fee", "Zero API key setup", "Managed model access", "Enterprise SLA support"].map(f => (
-                    <li key={f} className="flex items-center gap-3 text-sm text-zinc-600">
-                      <Check size={12} className="text-zinc-800" strokeWidth={3} />{f}
-                    </li>
-                  ))}
-                </ul>
-                <button disabled className="w-full py-3.5 border border-zinc-800/60 text-zinc-700 text-xs font-bold uppercase tracking-widest cursor-not-allowed">
-                  Join Waitlist
-                </button>
-              </motion.div>
-            </div>
+              </div>
+            </motion.div>
           </div>
         </section>
 
@@ -589,6 +575,11 @@ export default function LandingPage() {
                 Connect Gmail Free
                 <ArrowRight size={15} strokeWidth={3} className="group-hover:translate-x-0.5 transition-transform duration-150" />
               </button>
+              <div className="mt-6">
+                <a href="/demo" className="text-sm font-bold text-zinc-400 hover:text-white transition-colors">
+                  or try the live demo first →
+                </a>
+              </div>
             </motion.div>
           </div>
         </section>
@@ -607,23 +598,18 @@ export default function LandingPage() {
             </div>
             <p className="text-zinc-600 text-sm leading-relaxed">Your inbox, tamed by your own AI.</p>
             <div className="flex items-center gap-3 mt-1">
-              {[
-                <svg key="x" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l11.733 16h4.267l-11.733 -16z" /><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772" /></svg>,
-                <svg key="gh" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" /></svg>,
-              ].map((icon, i) => (
-                <a key={i} href="#" className="w-8 h-8 border border-zinc-800 flex items-center justify-center text-zinc-600 hover:text-white hover:border-zinc-600 transition-colors">
-                  {icon}
-                </a>
-              ))}
+              <a href={GITHUB_URL} aria-label="Mail-man on GitHub" target="_blank" rel="noopener noreferrer" className="w-8 h-8 border border-zinc-800 flex items-center justify-center text-zinc-600 hover:text-white hover:border-zinc-600 transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" /></svg>
+              </a>
             </div>
           </div>
 
           {/* Links */}
           <div className="grid grid-cols-3 gap-12 md:gap-20">
             {[
-              { label: "Product", links: [["Features", "#features"], ["Pricing", "#pricing"], ["Coming Soon", "#"]] },
-              { label: "Legal", links: [["Privacy Policy", "#"], ["Terms of Service", "#"]] },
-              { label: "Connect", links: [["Twitter", "#"], ["GitHub", "#"], ["Contact", "#"]] },
+              { label: "Product", links: [["Features", "#features"], ["Pricing", "#pricing"], ["Live demo", "/demo"]] },
+              { label: "Legal", links: [["Privacy Policy", "/privacy"], ["Terms of Service", "/terms"]] },
+              { label: "Code", links: [["GitHub", GITHUB_URL]] },
             ].map(col => (
               <div key={col.label} className="flex flex-col gap-4">
                 <span className="text-[10px] font-black uppercase tracking-widest text-zinc-700 mb-1">{col.label}</span>

@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "@/lib/toast";
 import {
   ChevronsRight, Reply, Forward, Tag, Star, Archive,
-  Trash2, MoreHorizontal, Sparkles, ThumbsUp, ThumbsDown, ChevronDown, RefreshCw,
-  ListTodo, AlertCircle, Mail, Maximize2, Filter, Printer, Plus, Check, Paperclip
+  Trash2, MoreHorizontal, Sparkles, RefreshCw,
+  ListTodo, AlertCircle, Mail, Plus, Check, Paperclip
 } from "lucide-react";
 import EmailBodyFrame from "./EmailBodyFrame";
 import type { MailAttachment, MailMessage } from "@/lib/mail-types";
@@ -31,6 +32,24 @@ interface ReadingPaneProps {
   onMarkHandled?: (emailId: string) => void;
   /** Reply to or forward one message of a conversation */
   onReplyToMessage?: (message: MailMessage, mode: "reply" | "forward") => void;
+  /** Adds a to-do linked to this email */
+  onCreateTask?: (email: MailMessage) => void;
+  /** The AI summary is on its way (the inbox is being analysed) */
+  summaryPending?: boolean;
+}
+
+/** "Oct 2, 3:15 PM (2 hours ago)" */
+function formatReceived(email: { timestamp?: number; date?: string }): string {
+  const d = email.timestamp ? new Date(email.timestamp) : new Date(email.date ?? "");
+  if (Number.isNaN(d.getTime())) return email.date ?? "";
+  const when = d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const minutes = Math.round((Date.now() - d.getTime()) / 60000);
+  if (minutes < 0 || minutes >= 60 * 24 * 7) return when;
+  const rtf = new Intl.RelativeTimeFormat([], { numeric: "auto" });
+  const ago = minutes < 60 ? rtf.format(-minutes, "minute")
+    : minutes < 60 * 24 ? rtf.format(-Math.round(minutes / 60), "hour")
+    : rtf.format(-Math.round(minutes / (60 * 24)), "day");
+  return `${when} (${ago})`;
 }
 
 export default function ReadingPane({
@@ -47,6 +66,8 @@ export default function ReadingPane({
   onCreateLabel,
   onMarkHandled,
   onReplyToMessage,
+  onCreateTask,
+  summaryPending = false,
 }: ReadingPaneProps) {
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
@@ -81,12 +102,14 @@ export default function ReadingPane({
         }),
       });
       if (response.ok) {
+        // The suggestion card goes away once the email is handled, so confirm with a toast too
+        toast(`Reply sent to ${selectedEmail.from}.`, "success");
         onMarkHandled?.(selectedEmail.id);
         setSendSuccess(true);
         setTimeout(() => setSendSuccess(false), 3000);
       } else {
         const data = await response.json().catch(() => ({}));
-        alert(data.error || "Could not send the reply.");
+        toast(data.error || "Could not send the reply.", "error");
       }
     } catch (error) {
       console.error("Failed to send:", error);
@@ -220,12 +243,9 @@ export default function ReadingPane({
                     <div className="fixed inset-0 z-40" onClick={() => setIsMoreMenuOpen(false)} />
                     <div className="absolute right-0 top-full mt-2 w-64 bg-zinc-900 border border-zinc-800/60 shadow-2xl rounded-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200 py-2">
                       <div className="flex flex-col">
-                        <button className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
-                          <span>Create Todo</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-zinc-600 font-bold">Ctrl+⇧+T</span>
-                            <ListTodo size={16} strokeWidth={1.5} className="text-zinc-500" />
-                          </div>
+                        <button onClick={() => { onCreateTask?.(selectedEmail); setIsMoreMenuOpen(false); }} className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
+                          <span>Add to To-do</span>
+                          <ListTodo size={16} strokeWidth={1.5} className="text-zinc-500" />
                         </button>
                         <div className="h-px bg-zinc-800 w-full my-1"></div>
                         <button onClick={() => { onAction && onAction(selectedEmail.id, "spam"); setIsMoreMenuOpen(false); }} className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
@@ -236,21 +256,6 @@ export default function ReadingPane({
                         <button onClick={() => { onAction && onAction(selectedEmail.id, "unread"); setIsMoreMenuOpen(false); }} className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
                           <span>Mark as Unread</span>
                           <Mail size={16} strokeWidth={1.5} className="text-zinc-500" />
-                        </button>
-                        <div className="h-px bg-zinc-800 w-full my-1"></div>
-                        <button className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
-                          <span>No Split</span>
-                          <Maximize2 size={16} strokeWidth={1.5} className="text-zinc-500" />
-                        </button>
-                        <div className="h-px bg-zinc-800 w-full my-1"></div>
-                        <button className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
-                          <span>Filter mail like this</span>
-                          <Filter size={16} strokeWidth={1.5} className="text-zinc-500" />
-                        </button>
-                        <div className="h-px bg-zinc-800 w-full my-1"></div>
-                        <button className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
-                          <span>Print</span>
-                          <Printer size={16} strokeWidth={1.5} className="text-zinc-500" />
                         </button>
                       </div>
                     </div>
@@ -281,17 +286,10 @@ export default function ReadingPane({
                 <h1 className="text-3xl font-bold text-zinc-50 leading-tight tracking-tight">
                   {selectedEmail.subject || "(No Subject)"}
                 </h1>
-                {selectedEmail.category ? (
+                {selectedEmail.category && (
                   <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-amber-500 bg-amber-500/10 border border-amber-500/20">
                     {selectedEmail.category}
                   </span>
-                ) : (
-                  <button
-                    onClick={() => null}
-                    className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-zinc-500 bg-zinc-900 border border-zinc-800/60 hover:text-amber-500 hover:border-amber-500/50 flex items-center gap-2 transition-all"
-                  >
-                    <RefreshCw size={12} strokeWidth={3} /> Scan
-                  </button>
                 )}
               </div>
 
@@ -300,19 +298,22 @@ export default function ReadingPane({
                   <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${getAvatarGradient(senderName)} flex items-center justify-center text-white font-bold text-xl shadow-sm shrink-0`}>
                     {senderName.charAt(0).toUpperCase()}
                   </div>
-                  <div className="flex flex-col">
+                  <div className="flex flex-col min-w-0">
                     <div className="flex items-baseline gap-2">
                       <h3 className="text-base font-bold text-zinc-100">
                         {senderName}
                       </h3>
+                      {selectedEmail.fromEmail && selectedEmail.fromEmail !== senderName && (
+                        <span className="text-xs text-zinc-500 truncate">{selectedEmail.fromEmail}</span>
+                      )}
                     </div>
-                    <p className="text-sm text-zinc-500 flex items-center gap-1 mt-0.5">
-                      <span className="font-bold text-zinc-400">To:</span> Me <ChevronDown size={14} className="text-zinc-600" />
+                    <p className="text-sm text-zinc-500 truncate mt-0.5" title={selectedEmail.to}>
+                      <span className="font-bold text-zinc-400">To:</span> {selectedEmail.to || "me"}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-xs text-zinc-500 font-medium tracking-tight">12:55 PM (1 hours ago)</span>
+                  <span className="text-xs text-zinc-500 font-medium tracking-tight whitespace-nowrap">{formatReceived(selectedEmail)}</span>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => onAction && onAction(selectedEmail.id, "reply")}
@@ -321,35 +322,33 @@ export default function ReadingPane({
                     >
                       <Reply size={18} strokeWidth={1.5} />
                     </button>
-                    <button className="text-zinc-500 hover:text-zinc-100 transition hover:bg-zinc-800 p-2 rounded-full"><MoreHorizontal size={18} strokeWidth={1.5} /></button>
+                    <button
+                      onClick={() => onAction && onAction(selectedEmail.id, "forward")}
+                      className="text-zinc-500 hover:text-zinc-100 transition hover:bg-zinc-800 p-2 rounded-full"
+                      title="Forward"
+                    >
+                      <Forward size={18} strokeWidth={1.5} />
+                    </button>
                   </div>
                 </div>
               </div>
 
               {selectedEmail.summary ? (
                 <div className="bg-zinc-900 border border-zinc-800/60 rounded-3xl p-6 mb-8 mt-2 shadow-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-amber-500/50" />
+                  <div className="absolute top-0 left-0 w-1 h-full bg-amber-500/50 pointer-events-none" />
                   <div className="flex justify-between items-center mb-5">
                     <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500">
                       AI Generated Summary
                     </h4>
-                    <div className="flex gap-2">
-                      <button className="text-zinc-600 hover:text-amber-500 transition"><ThumbsUp size={16} strokeWidth={2} /></button>
-                      <button className="text-zinc-600 hover:text-amber-500 transition"><ThumbsDown size={16} strokeWidth={2} /></button>
-                    </div>
                   </div>
                   <ul className="text-[15px] text-zinc-300 leading-relaxed font-medium space-y-3 list-disc pl-5 marker:text-amber-500/40">
-                    {selectedEmail.summary.split('.').filter((s: string) => s.trim().length > 0).map((sentence: string, idx: number) => (
-                      <li key={idx} className="pl-1">{sentence.trim()}.</li>
+                    {/* One bullet per sentence; splitting on ". " keeps "$48.00" intact */}
+                    {String(selectedEmail.summary).split(/(?<=[.!?])\s+/).filter((s: string) => s.trim().length > 0).map((sentence: string, idx: number) => (
+                      <li key={idx} className="pl-1">{sentence.trim()}</li>
                     ))}
                   </ul>
-                  <div className="mt-6">
-                    <button className="px-5 py-2 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 text-amber-500 text-[11px] font-black uppercase tracking-widest rounded-full transition-all">
-                      Check activity
-                    </button>
-                  </div>
                 </div>
-              ) : (
+              ) : summaryPending && (
                 <div className="bg-zinc-900/50 border border-zinc-800/40 border-dashed rounded-3xl p-6 mb-8 mt-2">
                   <p className="text-sm font-bold text-zinc-500 animate-pulse flex items-center gap-3">
                     <RefreshCw size={16} className="animate-spin text-amber-500" />
@@ -360,7 +359,7 @@ export default function ReadingPane({
 
               {selectedEmail.requires_reply && selectedEmail.draft_reply && (
                 <div className="bg-zinc-900 border border-zinc-800/60 rounded-3xl p-6 mb-8 animate-in slide-in-from-bottom-3 shadow-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 blur-[60px] rounded-full" />
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 blur-[60px] rounded-full pointer-events-none" />
                   <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-amber-500/10 rounded-lg">

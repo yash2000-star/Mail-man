@@ -133,7 +133,7 @@ export default function Sidebar({
         {onClose && !isCollapsed && (
           <button
             onClick={onClose}
-            className="md:hidden p-1.5 text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition"
+            className="md:hidden p-1.5 text-zinc-400 hover:bg-zinc-800 rounded-lg transition"
           >
             <X size={20} strokeWidth={2} />
           </button>
@@ -188,7 +188,7 @@ export default function Sidebar({
                       }`}
                   >
                     <div className="flex items-center gap-4">
-                      <div className={`w-2.5 h-2.5 rounded-full outline outline-1 outline-gray-200 dark:outline-white/10 ${dotColorClass}`} />
+                      <div className={`w-2.5 h-2.5 rounded-full outline outline-1 outline-white/10 ${dotColorClass}`} />
                       {!isCollapsed && <span className="truncate pr-4">{label.name}</span>}
                     </div>
                   </button>
@@ -200,8 +200,8 @@ export default function Sidebar({
                         setOpenMenuId(openMenuId === label.name ? null : label.name);
                       }}
                       className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md transition-all ${openMenuId === label.name
-                        ? "opacity-100 bg-gray-200 dark:bg-white/20 text-gray-800 dark:text-white"
-                        : "opacity-0 group-hover:opacity-100 text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 dark:hover:text-white"
+                        ? "opacity-100 bg-white/20 text-white"
+                        : "opacity-0 group-hover:opacity-100 text-zinc-400 hover:bg-white/10 hover:text-white"
                         }`}
                     >
                       <MoreHorizontal size={14} />
@@ -211,24 +211,24 @@ export default function Sidebar({
                   {openMenuId === label.name && !isCollapsed && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} />
-                      <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 w-56 bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.2)] rounded-xl overflow-hidden z-[9999] animate-in fade-in zoom-in-95 duration-200">
-                        <div className="flex flex-col p-1.5 border-b border-gray-100 dark:border-white/10">
+                      <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 w-56 bg-zinc-900 border border-zinc-800 shadow-[0_10px_40px_rgba(0,0,0,0.2)] rounded-xl overflow-hidden z-[9999] animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex flex-col p-1.5 border-b border-white/10">
                           <button
                             onClick={() => {
                               onEditCustomLabel?.(label);
                               setOpenMenuId(null);
                             }}
-                            className="flex items-center justify-between w-full px-3 py-2 text-sm text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors rounded-lg"
+                            className="flex items-center justify-between w-full px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 transition-colors rounded-lg"
                           >
                             <span>Edit</span>
-                            <Edit2 size={14} className="text-gray-400 dark:text-slate-400" />
+                            <Edit2 size={14} className="text-zinc-400" />
                           </button>
                           <button
                             onClick={() => {
                               if (onDeleteCustomLabel) onDeleteCustomLabel(label.name);
                               setOpenMenuId(null);
                             }}
-                            className="flex items-center justify-between w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+                            className="flex items-center justify-between w-full px-3 py-2 text-sm text-red-400 hover:bg-red-900/20 rounded-lg transition"
                           >
                             <span>Delete</span>
                             <Trash2 size={14} />
@@ -272,7 +272,7 @@ export default function Sidebar({
           <div className="mt-6">
             {!isCollapsed && (
               <div
-                className="px-3 py-2 text-[12px] font-bold text-gray-500 dark:text-slate-400 flex items-center justify-between cursor-pointer hover:text-gray-700 dark:hover:text-white transition-colors"
+                className="px-3 py-2 text-[12px] font-bold text-zinc-400 flex items-center justify-between cursor-pointer hover:text-white transition-colors"
                 onClick={() => setIsMailboxesOpen(!isMailboxesOpen)}
               >
                 <span>Mailboxes</span>
@@ -311,7 +311,9 @@ export default function Sidebar({
                   <span className="text-sm font-bold text-zinc-100 truncate">
                     {session?.user?.name || session?.user?.email}
                   </span>
-                  <span className="text-[10px] text-amber-500 font-bold uppercase tracking-widest">Free Plan</span>
+                  {session?.user?.name && session.user.email && (
+                    <span className="text-[11px] text-zinc-500 truncate">{session.user.email}</span>
+                  )}
                 </div>
               )}
             </div>

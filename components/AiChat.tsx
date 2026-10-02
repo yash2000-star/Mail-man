@@ -15,11 +15,11 @@ interface AiChatProps {
   onOpenSettings: () => void;
 }
 
-// The premium Mail-man AI Auto-fill prompts
+// Starter questions shown on an empty chat; they work with any inbox
 const SUGGESTED_PROMPTS = [
-  { text: "Help me draft a reply to Shanghai Metal about Aluminum Profile inquiry.", icon: PenLine },
-  { text: "Explain the AWS account upgrade requirement by April 15, 2026.", icon: Search },
-  { text: "Summarize all security alerts from Google.", icon: ClipboardList },
+  { text: "What needs a reply from me?", icon: PenLine },
+  { text: "Do I have any deadlines coming up?", icon: Search },
+  { text: "Summarize my unread emails.", icon: ClipboardList },
 ];
 
 export default function AiChat({ isOpen, onClose, emails, availableProviders, defaultProvider, onOpenSettings }: AiChatProps) {
@@ -172,7 +172,7 @@ export default function AiChat({ isOpen, onClose, emails, availableProviders, de
                   className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
                 >
                   <div
-                    className={`p-4 rounded-2xl text-[15px] leading-relaxed shadow-xl max-w-[85%] ${msg.role === "user"
+                    className={`p-4 rounded-2xl text-[15px] leading-relaxed whitespace-pre-wrap break-words shadow-xl max-w-[85%] ${msg.role === "user"
                       ? "bg-zinc-800 text-zinc-100 rounded-tr-none"
                       : "bg-zinc-900 text-zinc-300 rounded-tl-none border border-zinc-800/60"
                       }`}

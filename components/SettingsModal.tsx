@@ -15,6 +15,8 @@ interface SettingsModalProps {
   aiProvider: AiProvider | null;
   /** Resolves to an error message, or null on success. */
   onSave: (update: SettingsUpdate) => Promise<string | null>;
+  /** Deletes all of the user's Mail-man data; resolves to an error message, or null */
+  onDeleteData?: () => Promise<string | null>;
 }
 
 const FIELD: Record<AiProvider, KeyField> = {
@@ -23,7 +25,7 @@ const FIELD: Record<AiProvider, KeyField> = {
   anthropic: "anthropicApiKey",
 };
 
-export default function SettingsModal({ isOpen, onClose, savedKeys, aiProvider, onSave }: SettingsModalProps) {
+export default function SettingsModal({ isOpen, onClose, savedKeys, aiProvider, onSave, onDeleteData }: SettingsModalProps) {
   // New keys typed in this session; saved keys are never sent to the browser.
   const [newKeys, setNewKeys] = useState<Record<AiProvider, string>>({ gemini: "", openai: "", anthropic: "" });
   const [removed, setRemoved] = useState<Set<AiProvider>>(new Set());
@@ -31,6 +33,17 @@ export default function SettingsModal({ isOpen, onClose, savedKeys, aiProvider, 
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [error, setError] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteData = async () => {
+    if (!onDeleteData) return;
+    if (!confirm("Delete all your Mail-man data? This removes your saved API keys, Smart Labels, to-dos and AI summaries, and signs you out. Your Gmail is not affected.")) return;
+    setIsDeleting(true);
+    setError("");
+    const deleteError = await onDeleteData();
+    setIsDeleting(false);
+    if (deleteError) setError(deleteError);
+  };
 
   // Which providers will have a key after saving
   const willHaveKey = (p: AiProvider) => newKeys[p].trim() !== "" || (savedKeys[p].saved && !removed.has(p));
@@ -158,6 +171,21 @@ export default function SettingsModal({ isOpen, onClose, savedKeys, aiProvider, 
             {isSaved ? <><Check size={16} className="stroke-[4]" /> Saved</> : isSaving ? "Saving..." : "Save"}
           </button>
         </div>
+
+        {onDeleteData && (
+          <div className="mt-8 pt-5 border-t border-zinc-800/60 flex items-center justify-between gap-4">
+            <p className="text-xs text-zinc-500 leading-relaxed">
+              Remove everything Mail-man stores about you. <a href="/privacy" target="_blank" className="text-zinc-400 underline hover:text-zinc-200">Privacy</a>
+            </p>
+            <button
+              onClick={handleDeleteData}
+              disabled={isDeleting}
+              className="shrink-0 text-xs font-bold text-rose-400 hover:text-rose-300 border border-rose-500/30 hover:border-rose-500/60 rounded-full px-4 py-2 transition disabled:opacity-50"
+            >
+              {isDeleting ? "Deleting..." : "Delete my data"}
+            </button>
+          </div>
+        )}
 
       </div>
     </div>

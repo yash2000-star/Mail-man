@@ -145,23 +145,22 @@ export default function SetupPage() {
 
     if (status === "loading") {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-white">
-                <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+            <div className="min-h-screen flex items-center justify-center bg-black">
+                <div className="w-10 h-10 border-4 border-zinc-800 border-t-amber-500 rounded-full animate-spin" />
             </div>
         );
     }
 
     return (
-        // Matches the SettingsModal backdrop style
-        <div className="min-h-screen flex items-center justify-center bg-black/20 backdrop-blur-sm p-4" style={{ background: "linear-gradient(135deg, #e8f0fe 0%, #f3f4f6 50%, #fdf2f8 100%)" }}>
+        <div className="min-h-screen flex items-center justify-center p-4 bg-black bg-[radial-gradient(circle_at_70%_20%,rgba(245,158,11,0.12),transparent_55%)]">
 
-            {/* Card — identical to SettingsModal */}
-            <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            {/* Card styled like the Settings modal */}
+            <div className="w-full max-w-md bg-zinc-950 rounded-[32px] p-8 shadow-2xl relative animate-in zoom-in-95 duration-200 border border-zinc-800/60">
 
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-[17px] font-extrabold text-black flex items-center gap-2">
-                        <Key size={18} className="text-[#2ca2f6]" />
+                    <h2 className="text-[17px] font-extrabold text-zinc-100 flex items-center gap-2">
+                        <Key size={18} className="text-amber-500" />
                         Welcome to Mail-man.
                     </h2>
                 </div>
@@ -171,7 +170,7 @@ export default function SetupPage() {
                         <div className="space-y-5">
                             <div className="space-y-4">
                                 <div>
-                                    <p className="block text-[13px] font-bold text-gray-500 mb-1.5 ml-1">AI provider</p>
+                                    <p className="block text-[13px] font-bold text-zinc-500 mb-1.5 ml-1">AI provider</p>
                                     <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="AI provider">
                                         {AI_PROVIDERS.map((p) => (
                                             <button
@@ -180,7 +179,7 @@ export default function SetupPage() {
                                                 role="radio"
                                                 aria-checked={provider === p}
                                                 onClick={() => setProvider(p)}
-                                                className={`px-2 py-2.5 rounded-2xl text-[12px] font-bold border transition-colors ${provider === p ? "border-blue-400 bg-blue-50 text-black" : "border-transparent bg-[#f4f6f8] text-gray-500 hover:text-black"}`}
+                                                className={`px-2 py-2.5 rounded-2xl text-[12px] font-bold border transition-colors ${provider === p ? "border-amber-500/60 bg-amber-500/10 text-amber-400" : "border-zinc-800/60 bg-zinc-900 text-zinc-400 hover:text-zinc-100"}`}
                                             >
                                                 {PROVIDER_LABELS[p]}
                                             </button>
@@ -188,7 +187,7 @@ export default function SetupPage() {
                                     </div>
                                 </div>
                                 <div>
-                                    <label htmlFor="api-key" className="block text-[13px] font-bold text-gray-500 mb-1.5 ml-1">
+                                    <label htmlFor="api-key" className="block text-[13px] font-bold text-zinc-500 mb-1.5 ml-1">
                                         {PROVIDER_LABELS[provider]} API key
                                     </label>
                                     <input
@@ -199,38 +198,37 @@ export default function SetupPage() {
                                         onChange={(e) => setApiKey(e.target.value)}
                                         placeholder={PROVIDER_KEY_INFO[provider].placeholder}
                                         autoFocus
-                                        className="w-full bg-[#f4f6f8] border border-transparent text-black px-4 py-3 rounded-2xl outline-none focus:border-blue-300 transition-colors font-mono text-[13px] shadow-sm placeholder-gray-400"
+                                        className="w-full bg-zinc-900 border border-zinc-800/60 text-zinc-100 px-4 py-3 rounded-2xl outline-none focus:border-amber-500/50 transition-colors font-mono text-[13px] shadow-sm placeholder-zinc-600"
                                     />
                                 </div>
                             </div>
 
                             {error && (
-                                <p className="text-red-500 text-xs font-medium px-1">{error}</p>
+                                <p className="text-rose-400 text-xs font-medium px-1">{error}</p>
                             )}
 
-                            {/* Security notice — identical to SettingsModal */}
-                            <div className="bg-purple-500/10 border border-purple-500/20 p-4 rounded-2xl flex gap-3 text-purple-700 text-[13px] leading-relaxed">
-                                <ShieldAlert size={16} className="shrink-0 text-purple-600 mt-0.5" />
+                            <div className="bg-amber-500/5 border border-amber-500/10 p-4 rounded-2xl flex gap-3 text-zinc-400 text-[13px] leading-relaxed">
+                                <ShieldAlert size={16} className="shrink-0 text-amber-500 mt-0.5" />
                                 <p>
-                                    <strong>Your key stays on the server.</strong>{" "}
+                                    <strong className="text-zinc-200">Your key stays on the server.</strong>{" "}
                                     It is encrypted in the database and only used by Mail-man&apos;s server to call the AI. You can add keys for other providers later in Settings.
                                 </p>
                             </div>
                         </div>
 
-                        {/* Footer — identical to SettingsModal */}
+                        {/* Footer */}
                         <div className="flex items-center justify-between gap-3 pt-6">
                             <a
                                 href={PROVIDER_KEY_INFO[provider].getKeyUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-[13px] text-[#2ca2f6] hover:underline font-medium"
+                                className="text-[13px] text-amber-500 hover:underline font-medium"
                             >
                                 {provider === "gemini" ? "Get a free key →" : "Get a key →"}
                             </a>
                             <button
                                 type="submit"
-                                className="bg-[#8ecbfb] hover:bg-[#6abcf8] text-white font-extrabold text-[15px] px-7 py-2.5 rounded-full transition-all flex items-center justify-center gap-2 min-w-[140px]"
+                                className="bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-[15px] px-7 py-2.5 rounded-full transition-all flex items-center justify-center gap-2 min-w-[140px]"
                             >
                                 Unlock Inbox
                                 <ArrowRight size={15} />
@@ -242,8 +240,8 @@ export default function SetupPage() {
                 {(phase === "loading" || phase === "done") && (
                     <div className="py-4 space-y-5">
                         {/* Dynamic status message */}
-                        <p className="text-[13px] font-bold text-gray-500 mb-1.5 ml-1">Status</p>
-                        <div className="bg-[#f4f6f8] rounded-2xl px-4 py-3 text-[13px] font-mono text-black shadow-sm flex items-center gap-3">
+                        <p className="text-[13px] font-bold text-zinc-500 mb-1.5 ml-1">Status</p>
+                        <div className="bg-zinc-900 border border-zinc-800/60 rounded-2xl px-4 py-3 text-[13px] font-mono text-zinc-100 shadow-sm flex items-center gap-3">
                             {phase === "done" ? (
                                 <>
                                     <Check size={15} className="text-[#43b016] shrink-0 stroke-[3]" />
@@ -251,7 +249,7 @@ export default function SetupPage() {
                                 </>
                             ) : (
                                 <>
-                                    <div className="w-3.5 h-3.5 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin shrink-0" />
+                                    <div className="w-3.5 h-3.5 border-2 border-zinc-700 border-t-amber-500 rounded-full animate-spin shrink-0" />
                                     <span
                                         key={loadingMessage}
                                         className="animate-pulse"
@@ -272,10 +270,10 @@ export default function SetupPage() {
                                 const active = phase === "loading" && phaseIndex === i;
                                 return (
                                     <div key={step} className="flex items-center gap-2.5 text-[13px]">
-                                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${done ? "border-[#43b016] bg-[#43b016]/10" : active ? "border-blue-400 bg-blue-50" : "border-gray-200"}`}>
+                                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${done ? "border-[#43b016] bg-[#43b016]/10" : active ? "border-amber-500 bg-amber-500/10" : "border-zinc-700"}`}>
                                             {done && <Check size={9} className="text-[#43b016] stroke-[3]" />}
                                         </div>
-                                        <span className={done ? "text-gray-500 line-through" : active ? "text-black font-semibold" : "text-gray-400"}>{step}</span>
+                                        <span className={done ? "text-zinc-500 line-through" : active ? "text-zinc-100 font-semibold" : "text-zinc-600"}>{step}</span>
                                     </div>
                                 );
                             })}
