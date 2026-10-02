@@ -16,7 +16,7 @@ import { useState, useEffect, useRef } from "react";
 import { AI_PROVIDERS, AiProvider, SavedKeys } from "@/lib/ai-providers";
 import type { LabelColor, SmartLabel } from "@/lib/labels";
 import type { Task } from "@/lib/tasks";
-import { isFolder, type MailAnalysis, type MailItem, type MailMessage, type MailPage } from "@/lib/mail-types";
+import { isFolder, type MailAnalysis, type MailItem, type MailMessage, type MailPage, type MailThread } from "@/lib/mail-types";
 import {
   Bot, Mail, Menu, ListTodo, Pencil
 } from "lucide-react";
@@ -208,6 +208,18 @@ export default function Home() {
     return response.json();
   };
 
+  /** Loads a whole conversation, oldest first; null on failure. */
+  const loadThread = async (threadId: string): Promise<MailMessage[] | null> => {
+    const response = await fetch(`/api/gmail/threads/${threadId}`);
+    if (!response.ok) return null;
+    const data: MailThread = await response.json();
+    return data.messages;
+  };
+
+  /** The message that Reply / AI Reply should answer: the newest in the conversation. */
+  const latestMessage = (email: any): MailMessage | null =>
+    email?.thread?.length ? email.thread[email.thread.length - 1] : email?.body !== undefined ? email : null;
+
   const handleSelectEmail = async (email: any) => {
     if (activeMailbox === "Draft") {
       openDraft(email.id);
@@ -217,11 +229,20 @@ export default function Home() {
     if (email.isUnread) handleEmailAction(email.id, "read");
     if (email.body !== undefined) return;
 
-    const full = await loadFullMessage(email.id);
-    if (!full) return;
-    // Keep AI results we already have in memory
-    const merged = { ...full, ...pickAnalysis(email), isUnread: false };
-    setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, ...merged } : e)));
+    // Open the whole conversation; fall back to the single message
+    const thread = email.threadId ? await loadThread(email.threadId) : null;
+    const focus = thread?.find((m) => m.id === email.id) ?? thread?.[thread.length - 1] ?? await loadFullMessage(email.id);
+    if (!focus) return;
+    // Keep the list row's AI results and conversation fields
+    const merged = {
+      ...focus,
+      ...pickAnalysis(email),
+      id: email.id,
+      messageCount: email.messageCount,
+      isUnread: false,
+      thread: thread ?? undefined,
+    };
+    setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, isUnread: false } : e)));
     setSelectedEmail((prev: any) => (prev?.id === email.id ? { ...prev, ...merged } : prev));
   };
 
@@ -452,18 +473,24 @@ export default function Home() {
         setSelectedEmail({ ...selectedEmail, isStarred: false });
     } else if (action === "reply" || action === "forward") {
       if (selectedEmail) {
-        // Make sure we have the body and reply headers before composing
-        const original = selectedEmail.body !== undefined ? selectedEmail : await loadFullMessage(selectedEmail.id);
+        // Answer the newest message of the conversation, loading it if needed
+        const original = latestMessage(selectedEmail) ?? await loadFullMessage(selectedEmail.id);
         if (original) startReplyOrForward(original, action);
       }
       return; // compose only, nothing to change in Gmail yet
     }
 
+    // Conversation rows change the whole thread (except stars, which are per message)
+    const row = emails.find((e) => e.id === id) ?? (selectedEmail?.id === id ? selectedEmail : null);
+    const target = row?.messageCount && action !== "star" && action !== "unstar"
+      ? { threadId: row.threadId }
+      : { id };
+
     try {
       const response = await fetch("/api/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action }),
+        body: JSON.stringify({ ...target, action }),
       });
       if (!response.ok) console.error(`Failed to ${action} email`);
     } catch (error) {
@@ -513,7 +540,7 @@ export default function Home() {
     setIsAiThinking(true);
 
     try {
-      const original: MailMessage | null = email.body !== undefined ? email : await loadFullMessage(email.id);
+      const original: MailMessage | null = latestMessage(email) ?? await loadFullMessage(email.id);
       if (!original) throw new Error("Could not load the email.");
 
       const response = await fetch("/api/ai/reply", {
@@ -593,8 +620,11 @@ export default function Home() {
       return;
     }
     const full = await loadFullMessage(emailId);
-    if (full) setSelectedEmail(full);
-    else alert("That email is no longer in your mailbox.");
+    if (!full) {
+      alert("That email is no longer in your mailbox.");
+      return;
+    }
+    handleSelectEmail(full.body !== undefined ? { ...full, body: undefined } : full);
   };
 
 
@@ -870,6 +900,7 @@ export default function Home() {
                 onToggleLabel={handleToggleLabel}
                 onCreateLabel={() => setLabelModal("new")}
                 onMarkHandled={handleMarkHandled}
+                onReplyToMessage={(message, mode) => startReplyOrForward(message, mode)}
               />
             </>
           )}

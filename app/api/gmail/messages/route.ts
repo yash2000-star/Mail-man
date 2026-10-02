@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import EmailAnalysis from "@/models/EmailAnalysis";
-import { folderQuery, getGmailAuth, getMailItems, isFolder, listMessageIds } from "@/lib/gmail";
+import { folderQuery, getGmailAuth, getMailItems, getThreadItems, isFolder, listMessageIds, listThreadIds } from "@/lib/gmail";
 import { withAnalysis } from "@/lib/analysis";
 import { gmailAuthRequired, gmailErrorResponse } from "@/lib/api-response";
 import type { MailPage } from "@/lib/mail-types";
 
 const PAGE_SIZE = 25;
+
+// Folders shown as conversations. Sent and Draft stay one row per message:
+// Sent should show your own messages, and each draft opens on its own.
+const THREADED = new Set(["Inbox", "Starred", "All Mail", "Archive", "Spam", "Trash"]);
 
 /**
  * GET /api/gmail/messages
@@ -48,7 +52,14 @@ export async function GET(req: NextRequest) {
             const folder = params.get("folder") || "Inbox";
             if (!isFolder(folder)) return NextResponse.json({ error: "Unknown folder" }, { status: 400 });
             const search = (params.get("q") || "").slice(0, 500);
-            page = await listMessageIds(auth.accessToken, { ...folderQuery(folder, search), pageToken, maxResults: PAGE_SIZE });
+            const query = { ...folderQuery(folder, search), pageToken, maxResults: PAGE_SIZE };
+            if (THREADED.has(folder)) {
+                const threads = await listThreadIds(auth.accessToken, query);
+                const emails = await withAnalysis(auth.email, await getThreadItems(auth.accessToken, threads.ids, auth.email));
+                const body: MailPage = { emails, nextPageToken: threads.nextPageToken };
+                return NextResponse.json(body);
+            }
+            page = await listMessageIds(auth.accessToken, query);
         }
 
         const emails = await withAnalysis(auth.email, await getMailItems(auth.accessToken, page.ids));

@@ -32,6 +32,10 @@ export interface MailItem extends MailAnalysis {
     isUnread: boolean;
     isStarred: boolean;
     hasAttachment: boolean;
+    /** Milliseconds since epoch, from Gmail's internal date */
+    timestamp: number;
+    /** Set on conversation rows: how many messages the thread has */
+    messageCount?: number;
 }
 
 export interface MailAttachment {
@@ -51,6 +55,12 @@ export interface MailMessage extends MailItem {
     /** RFC 5322 Message-ID, used to thread replies */
     messageId: string;
     references: string;
+}
+
+/** A whole conversation, oldest message first. */
+export interface MailThread {
+    threadId: string;
+    messages: MailMessage[];
 }
 
 export interface MailPage {

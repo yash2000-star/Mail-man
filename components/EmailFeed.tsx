@@ -528,6 +528,9 @@ export default function EmailFeed({
                       <div className="flex justify-between items-baseline">
                         <h3 className={`text-sm truncate pr-2 ${isSelected ? "text-zinc-50 font-bold" : (email.isUnread ? "text-zinc-50 font-bold" : "text-zinc-400 font-semibold")}`}>
                           {senderName}
+                          {email.messageCount > 1 && (
+                            <span className="ml-1.5 text-xs font-medium text-zinc-500" aria-label={`${email.messageCount} messages`}>{email.messageCount}</span>
+                          )}
                         </h3>
                         {/* Time only shows if NOT hovering */}
                         <span className={`text-xs shrink-0 group-hover:hidden md:block md:group-hover:hidden ${isSelected ? "text-zinc-300 font-semibold" : (email.isUnread ? "text-zinc-200 font-bold" : "text-zinc-500 font-medium")}`}>

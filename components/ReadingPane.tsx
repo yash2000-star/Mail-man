@@ -7,7 +7,8 @@ import {
   ListTodo, AlertCircle, Mail, Maximize2, Filter, Printer, Plus, Check, Paperclip
 } from "lucide-react";
 import EmailBodyFrame from "./EmailBodyFrame";
-import type { MailAttachment } from "@/lib/mail-types";
+import type { MailAttachment, MailMessage } from "@/lib/mail-types";
+import ThreadView from "./ThreadView";
 import type { SmartLabel } from "@/lib/labels";
 
 const formatSize = (bytes: number) =>
@@ -28,6 +29,8 @@ interface ReadingPaneProps {
   onCreateLabel?: () => void;
   /** Takes the email off the Needs Reply list */
   onMarkHandled?: (emailId: string) => void;
+  /** Reply to or forward one message of a conversation */
+  onReplyToMessage?: (message: MailMessage, mode: "reply" | "forward") => void;
 }
 
 export default function ReadingPane({
@@ -43,6 +46,7 @@ export default function ReadingPane({
   onToggleLabel,
   onCreateLabel,
   onMarkHandled,
+  onReplyToMessage,
 }: ReadingPaneProps) {
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
@@ -402,6 +406,15 @@ export default function ReadingPane({
 
             {/* Actual Email Body (Full Width Edge-to-Edge) */}
             <div className="w-full bg-white min-h-full py-12 px-8 md:px-12">
+              {selectedEmail.thread?.length > 1 ? (
+                <ThreadView
+                  key={selectedEmail.threadId}
+                  messages={selectedEmail.thread}
+                  focusId={selectedEmail.id}
+                  onReply={(m) => onReplyToMessage?.(m, "reply")}
+                  onForward={(m) => onReplyToMessage?.(m, "forward")}
+                />
+              ) : (<>
               <div className="email-content-wrapper max-w-4xl mx-auto overflow-x-auto max-w-full">
                 {selectedEmail.body === undefined ? (
                   <div className="space-y-3 animate-pulse" aria-label="Loading email">
@@ -439,6 +452,7 @@ export default function ReadingPane({
                   </div>
                 </div>
               )}
+              </>)}
             </div>
 
             {/* Bottom Action Pills (Centered) */}
