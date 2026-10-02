@@ -2,21 +2,8 @@
 
 import { useState } from "react";
 import {
-  Search,
-  RefreshCw,
-  SlidersHorizontal,
-  ListFilter,
-  Sparkles,
-  Archive,
-  Trash2,
-  Mail,
-  Star,
-  Coffee,
-  MailOpen,
-  PanelLeft,
-  Tag,
-  PanelLeftClose,
-  PanelLeftOpen
+  Search, RefreshCw, SlidersHorizontal, ListFilter, Sparkles, Archive, Trash2, Mail, Star, Coffee,
+  MailOpen, Tag, PanelLeftClose, PanelLeftOpen
 } from "lucide-react";
 
 interface EmailFeedProps {
@@ -31,6 +18,11 @@ interface EmailFeedProps {
   customLabels?: any[];
   onToggleSidebar?: () => void;
   isSidebarCollapsed?: boolean;
+  /** Paging: another page of this mailbox can be loaded */
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
+  mailboxName?: string;
 }
 
 const LABEL_COLORS: Record<string, string> = {
@@ -42,6 +34,15 @@ const LABEL_COLORS: Record<string, string> = {
   indigo: "bg-indigo-500/20 text-indigo-400 border-indigo-500/20",
   purple: "bg-purple-500/20 text-purple-400 border-purple-500/20",
 };
+
+function Badge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full text-[9px] font-black ml-1.5 self-center">
+      {count}
+    </span>
+  );
+}
 
 export default function EmailFeed({
   emails,
@@ -55,6 +56,10 @@ export default function EmailFeed({
   customLabels = [],
   onToggleSidebar,
   isSidebarCollapsed,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
+  mailboxName = "Inbox",
 }: EmailFeedProps) {
   // The memory for what the user is searching and what tab is active!
   const [searchQuery, setSearchQuery] = useState("");
@@ -71,7 +76,7 @@ export default function EmailFeed({
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
   const [visibleTabs, setVisibleTabs] = useState({
     Important: true,
-    Updates: true,
+    Social: true,
     Promotions: true,
   });
 
@@ -108,17 +113,11 @@ export default function EmailFeed({
 
   // Filter ENGINE
   const filteredEmails = emails.filter((email) => {
-    const matchesSearch =
-      email.subject?.toLowerCase().includes(searchQuery.toLocaleLowerCase()) ||
-      email.from?.toLowerCase().includes(searchQuery.toLocaleLowerCase());
-
     let matchesTab = true;
     if (activeTab === "Important") {
       matchesTab = email.category?.toLowerCase() === "important";
-    } else if (activeTab === "Updates") {
-      matchesTab =
-        email.category?.toLowerCase() === "updates" ||
-        email.category?.toLowerCase() === "social";
+    } else if (activeTab === "Social") {
+      matchesTab = email.category?.toLowerCase() === "social";
     } else if (activeTab === "Promotions") {
       matchesTab = email.category?.toLowerCase() === "promotions";
     } else if (activeTab !== "All") {
@@ -151,27 +150,19 @@ export default function EmailFeed({
         matchesAdvanced = false;
     }
 
-    return matchesSearch && matchesTab && matchesAdvanced;
+    return matchesTab && matchesAdvanced;
   });
 
   // Helper to calculate unread counts dynamically
   const getUnreadCount = (tabName: string) => {
-    if (tabName === "All") return emails.filter(e => !e.isRead).length;
-    if (tabName === "Important" || tabName === "Updates" || tabName === "Promotions") {
-      return emails.filter(e => !e.isRead && e.category?.toLowerCase() === tabName.toLowerCase()).length;
+    if (tabName === "All") return emails.filter(e => e.isUnread).length;
+    if (tabName === "Important" || tabName === "Social" || tabName === "Promotions") {
+      return emails.filter(e => e.isUnread && e.category?.toLowerCase() === tabName.toLowerCase()).length;
     }
     // For custom labels
-    return emails.filter(e => !e.isRead && e.appliedLabels && e.appliedLabels.includes(tabName)).length;
+    return emails.filter(e => e.isUnread && e.appliedLabels && e.appliedLabels.includes(tabName)).length;
   };
 
-  const Badge = ({ count }: { count: number }) => {
-    if (count <= 0) return null;
-    return (
-      <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full text-[9px] font-black ml-1.5 self-center">
-        {count}
-      </span>
-    );
-  };
 
   return (
     <section
@@ -211,12 +202,17 @@ export default function EmailFeed({
             <Search size={20} strokeWidth={1.5} className="text-zinc-500 mr-3 shrink-0" />
             <input
               type="text"
-              placeholder="Search..."
+              placeholder={`Search ${mailboxName}...`}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                // Clearing the box goes back to the full mailbox
+                if (e.target.value === "") onSearch("");
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") onSearch(searchQuery);
               }}
+              aria-label={`Search ${mailboxName} (press Enter)`}
               className="bg-transparent border-none outline-none text-[15.5px] font-medium text-zinc-100 w-full placeholder-zinc-600"
             />
             {/* Filter settings inside search */}
@@ -378,13 +374,13 @@ export default function EmailFeed({
               </button>
             )}
 
-            {visibleTabs.Updates && (
+            {visibleTabs.Social && (
               <button
-                onClick={() => setActiveTab("Updates")}
-                className={`h-full px-4 flex items-center gap-2 whitespace-nowrap border-b-2 transition-all text-sm font-bold tracking-tight ${activeTab === "Updates" ? "text-white border-amber-500" : "text-zinc-500 border-transparent hover:text-zinc-300 hover:bg-zinc-900/50"}`}
+                onClick={() => setActiveTab("Social")}
+                className={`h-full px-4 flex items-center gap-2 whitespace-nowrap border-b-2 transition-all text-sm font-bold tracking-tight ${activeTab === "Social" ? "text-white border-amber-500" : "text-zinc-500 border-transparent hover:text-zinc-300 hover:bg-zinc-900/50"}`}
               >
-                Updates
-                <Badge count={getUnreadCount("Updates")} />
+                Social
+                <Badge count={getUnreadCount("Social")} />
               </button>
             )}
 
@@ -464,9 +460,9 @@ export default function EmailFeed({
             <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mb-4 border border-zinc-800/60 shadow-xl">
               <Coffee size={28} className="text-zinc-600" />
             </div>
-            <h3 className="text-xl text-zinc-100 font-bold tracking-tight">Nothing to see here</h3>
+            <h3 className="text-xl text-zinc-100 font-bold tracking-tight">{isSyncing ? "One moment" : "Nothing to see here"}</h3>
             <p className="text-zinc-500 text-sm mt-2 max-w-[250px]">
-              {searchQuery ? "No emails match your search." : "This folder is completely empty. Enjoy your free time!"}
+              {isSyncing ? "Loading emails..." : searchQuery ? "No emails match your search." : `${mailboxName} is empty.`}
             </p>
           </div>
 
@@ -600,6 +596,18 @@ export default function EmailFeed({
               </div>
             );
           })
+        )}
+
+        {hasMore && filteredEmails.length > 0 && (
+          <div className="flex justify-center py-6">
+            <button
+              onClick={onLoadMore}
+              disabled={isLoadingMore}
+              className="px-6 py-2.5 rounded-full border border-zinc-800/60 bg-zinc-900 text-zinc-300 text-sm font-bold hover:bg-zinc-800 hover:text-zinc-100 transition disabled:opacity-50"
+            >
+              {isLoadingMore ? "Loading..." : "Load more"}
+            </button>
+          </div>
         )}
       </div>
     </section>

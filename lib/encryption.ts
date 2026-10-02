@@ -1,8 +1,16 @@
 import crypto from 'crypto';
+import { getEnv } from './env';
 
 const ALGORITHM = 'aes-256-cbc';
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || ''; // Must be 32 bytes
 const IV_LENGTH = 16; // For AES, this is always 16
+
+function getEncryptionKey(): string {
+    const key = getEnv('ENCRYPTION_KEY');
+    if (Buffer.byteLength(key) !== 32) {
+        throw new Error('ENCRYPTION_KEY must be exactly 32 bytes (32 ASCII characters).');
+    }
+    return key;
+}
 
 /**
  * Encrypts a plain text string using AES-256-CBC.
@@ -10,9 +18,7 @@ const IV_LENGTH = 16; // For AES, this is always 16
  */
 export function encryptApiKey(text: string): string {
     if (!text) return '';
-    if (ENCRYPTION_KEY.length !== 32) {
-        throw new Error('Encryption key must be 32 characters long.');
-    }
+    const ENCRYPTION_KEY = getEncryptionKey();
 
     const iv = crypto.randomBytes(IV_LENGTH);
     const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv);
@@ -34,9 +40,7 @@ export function decryptApiKey(hash: string): string {
         return hash;
     }
 
-    if (ENCRYPTION_KEY.length !== 32) {
-        throw new Error('Encryption key must be 32 characters long.');
-    }
+    const ENCRYPTION_KEY = getEncryptionKey();
 
     try {
         const textParts = hash.split(':');

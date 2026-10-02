@@ -1,12 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useSession } from "next-auth/react";
 import {
   ChevronsRight, Reply, Forward, Tag, Star, Archive,
   Trash2, MoreHorizontal, Sparkles, ThumbsUp, ThumbsDown, ChevronDown, RefreshCw,
-  ListTodo, AlertCircle, Mail, Maximize2, Filter, Printer, Plus, Check
+  ListTodo, AlertCircle, Mail, Maximize2, Filter, Printer, Plus, Check, Paperclip
 } from "lucide-react";
+import EmailBodyFrame from "./EmailBodyFrame";
+import type { MailAttachment } from "@/lib/mail-types";
+import type { SmartLabel } from "@/lib/labels";
+
+const formatSize = (bytes: number) =>
+  bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
 interface ReadingPaneProps {
   selectedEmail: any | null;
@@ -17,6 +22,12 @@ interface ReadingPaneProps {
   onUpdateEmail?: (id: string, updates: any) => void;
   onAiReply?: () => void;
   isAiThinking?: boolean;
+  customLabels?: SmartLabel[];
+  /** Adds or removes a Smart Label on this email */
+  onToggleLabel?: (emailId: string, name: string, applied: boolean) => void;
+  onCreateLabel?: () => void;
+  /** Takes the email off the Needs Reply list */
+  onMarkHandled?: (emailId: string) => void;
 }
 
 export default function ReadingPane({
@@ -27,19 +38,17 @@ export default function ReadingPane({
   onAction,
   onUpdateEmail,
   onAiReply,
-  isAiThinking
+  isAiThinking,
+  customLabels = [],
+  onToggleLabel,
+  onCreateLabel,
+  onMarkHandled,
 }: ReadingPaneProps) {
-  const { data: session } = useSession();
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isLabelMenuOpen, setIsLabelMenuOpen] = useState(false);
 
-  const handleApplyLabel = (labelName: string) => {
-    if (!selectedEmail || !onUpdateEmail) return;
-    onUpdateEmail(selectedEmail.id, { label: labelName });
-    setIsLabelMenuOpen(false);
-  };
 
   const getAvatarGradient = (name: string) => {
     const char = name?.charAt(0).toUpperCase() || "A";
@@ -49,27 +58,31 @@ export default function ReadingPane({
     return "from-emerald-600 to-teal-600";
   };
 
+  // Sends the AI-suggested reply as-is, in the same thread
   const handleSend = async () => {
-    if (!session || !(session as any).accessToken) return;
+    if (!selectedEmail?.draft_reply) return;
     setIsSending(true);
     try {
       const response = await fetch("/api/send", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${(session as any).accessToken}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          to: selectedEmail.from,
-          subject: selectedEmail.subject?.startsWith("Re:")
-            ? selectedEmail.subject
-            : `Re: ${selectedEmail.subject}`,
+          to: selectedEmail.fromEmail || selectedEmail.from,
+          subject: /^re:/i.test(selectedEmail.subject || "") ? selectedEmail.subject : `Re: ${selectedEmail.subject}`,
           message: selectedEmail.draft_reply,
+          threadId: selectedEmail.threadId,
+          inReplyTo: selectedEmail.messageId || undefined,
+          references: selectedEmail.references || undefined,
+          replyToEmailId: selectedEmail.id,
         }),
       });
       if (response.ok) {
+        onMarkHandled?.(selectedEmail.id);
         setSendSuccess(true);
         setTimeout(() => setSendSuccess(false), 3000);
+      } else {
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || "Could not send the reply.");
       }
     } catch (error) {
       console.error("Failed to send:", error);
@@ -113,7 +126,7 @@ export default function ReadingPane({
                 </button>
               </div>
 
-              <div className="flex items-center h-10 bg-zinc-900 rounded-full px-1.5 border border-zinc-800/60 shadow-xl overflow-hidden">
+              <div className="flex items-center h-10 bg-zinc-900 rounded-full px-1.5 border border-zinc-800/60 shadow-xl">
                 <div className="relative h-full flex items-center">
                   <button
                     onClick={() => setIsLabelMenuOpen(!isLabelMenuOpen)}
@@ -123,26 +136,39 @@ export default function ReadingPane({
                     <Tag size={18} strokeWidth={2} />
                   </button>
                   {isLabelMenuOpen && (
-                    <div className="absolute top-full mt-3 right-0 w-[280px] bg-zinc-900 border border-zinc-700/60 rounded-2xl shadow-2xl p-4 z-[999] flex flex-col gap-3 text-left cursor-default" onClick={(e) => e.stopPropagation()}>
+                    <div className="absolute top-full mt-3 left-0 w-[280px] bg-zinc-900 border border-zinc-700/60 rounded-2xl shadow-2xl p-4 z-[999] flex flex-col gap-3 text-left cursor-default" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-white text-[15px]">Smart Label</span>
-                        <button className="w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-white transition-colors">
+                        <span className="font-bold text-white text-[15px]">Smart Labels</span>
+                        <button
+                          onClick={() => { setIsLabelMenuOpen(false); onCreateLabel?.(); }}
+                          title="New Smart Label"
+                          className="w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-white transition-colors"
+                        >
                           <Plus size={14} strokeWidth={2.5} />
                         </button>
                       </div>
-                      <p className="text-zinc-400 text-xs leading-relaxed pr-4">
-                        Similar emails will be labeled automatically from now on.
-                      </p>
-                      <div className="flex flex-col gap-3 mt-2">
-                        {['Important', 'Updates', 'Promotions'].map(label => (
-                          <label key={label} className="flex items-center gap-3 cursor-pointer group">
-                            <div className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${label === 'Updates' ? 'bg-amber-500 border-amber-500 text-zinc-900' : 'border border-zinc-600 group-hover:border-zinc-400'}`}>
-                              {label === 'Updates' && <Check size={12} strokeWidth={4} />}
-                            </div>
-                            <span className="text-sm text-zinc-200 group-hover:text-white transition-colors">{label}</span>
-                          </label>
-                        ))}
-                      </div>
+                      {customLabels.length === 0 ? (
+                        <p className="text-zinc-400 text-xs leading-relaxed pr-4">
+                          You have no Smart Labels yet. Create one and Mail-man will apply it to matching emails.
+                        </p>
+                      ) : (
+                        <div className="flex flex-col gap-3 mt-1 max-h-60 overflow-y-auto">
+                          {customLabels.map((label) => {
+                            const applied = Boolean(selectedEmail.appliedLabels?.includes(label.name));
+                            return (
+                              <label key={label.name} className="flex items-center gap-3 cursor-pointer group">
+                                <input
+                                  type="checkbox"
+                                  checked={applied}
+                                  onChange={() => onToggleLabel?.(selectedEmail.id, label.name, !applied)}
+                                  className="accent-amber-500 w-4 h-4 cursor-pointer"
+                                />
+                                <span className="text-sm text-zinc-200 group-hover:text-white transition-colors truncate">{label.name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
                       <div className="flex justify-end mt-3">
                         <button onClick={() => setIsLabelMenuOpen(false)} className="bg-amber-500 hover:bg-amber-400 text-zinc-900 text-sm font-bold px-5 py-2 rounded-full transition-colors">
                           Done
@@ -328,7 +354,7 @@ export default function ReadingPane({
                 </div>
               )}
 
-              {selectedEmail.draft_reply && (
+              {selectedEmail.requires_reply && selectedEmail.draft_reply && (
                 <div className="bg-zinc-900 border border-zinc-800/60 rounded-3xl p-6 mb-8 animate-in slide-in-from-bottom-3 shadow-2xl relative overflow-hidden group">
                   <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 blur-[60px] rounded-full" />
                   <div className="flex items-center justify-between mb-5">
@@ -341,6 +367,13 @@ export default function ReadingPane({
                       </h4>
                     </div>
                     <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => onMarkHandled?.(selectedEmail.id)}
+                        title="Remove from Needs Reply"
+                        className="text-zinc-400 hover:text-zinc-100 text-[11px] font-black uppercase tracking-widest py-2 px-3 rounded-full transition"
+                      >
+                        Done
+                      </button>
                       <button
                         onClick={() => navigator.clipboard.writeText(selectedEmail.draft_reply)}
                         className="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700 text-[11px] font-black uppercase tracking-widest py-2 px-4 rounded-full transition shadow-xl"
@@ -369,10 +402,43 @@ export default function ReadingPane({
 
             {/* Actual Email Body (Full Width Edge-to-Edge) */}
             <div className="w-full bg-white min-h-full py-12 px-8 md:px-12">
-              <div
-                dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
-                className="email-content-wrapper text-zinc-900 text-[16px] leading-[1.8] font-sans max-w-4xl mx-auto break-words selection:bg-amber-100 overflow-x-auto max-w-full"
-              />
+              <div className="email-content-wrapper max-w-4xl mx-auto overflow-x-auto max-w-full">
+                {selectedEmail.body === undefined ? (
+                  <div className="space-y-3 animate-pulse" aria-label="Loading email">
+                    <div className="h-4 bg-zinc-200 rounded w-3/4" />
+                    <div className="h-4 bg-zinc-200 rounded w-full" />
+                    <div className="h-4 bg-zinc-200 rounded w-5/6" />
+                  </div>
+                ) : (
+                  <EmailBodyFrame
+                    html={selectedEmail.body || selectedEmail.snippet || ""}
+                    isHtml={selectedEmail.body ? selectedEmail.bodyIsHtml : false}
+                    title={selectedEmail.subject || "Email content"}
+                  />
+                )}
+              </div>
+
+              {selectedEmail.attachments?.length > 0 && (
+                <div className="max-w-4xl mx-auto mt-10 pt-6 border-t border-zinc-200">
+                  <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-3">
+                    {selectedEmail.attachments.length} attachment{selectedEmail.attachments.length > 1 ? "s" : ""}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedEmail.attachments.map((a: MailAttachment) => (
+                      <a
+                        key={a.attachmentId}
+                        href={`/api/gmail/messages/${selectedEmail.id}/attachments/${encodeURIComponent(a.attachmentId)}`}
+                        download={a.filename}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-800 text-sm max-w-[260px]"
+                      >
+                        <Paperclip size={14} className="shrink-0 text-zinc-500" />
+                        <span className="truncate font-medium">{a.filename}</span>
+                        <span className="shrink-0 text-xs text-zinc-500">{formatSize(a.size)}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Bottom Action Pills (Centered) */}

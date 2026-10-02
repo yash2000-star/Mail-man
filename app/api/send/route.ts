@@ -1,53 +1,55 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { getGmailAuth, gmailFetch } from "@/lib/gmail";
+import { buildRawMessage, MimeError, parseRecipients } from "@/lib/mime";
+import { gmailAuthRequired, gmailErrorResponse } from "@/lib/api-response";
+import dbConnect from "@/lib/mongodb";
+import EmailAnalysis from "@/models/EmailAnalysis";
 
-export async function POST(req: Request) {
+const MAX_BODY_CHARS = 500_000;
+
+/**
+ * POST /api/send
+ * { to, cc?, bcc?, subject, message, isHtml?, threadId?, inReplyTo?, references?, replyToEmailId? }
+ */
+export async function POST(req: NextRequest) {
+  const auth = await getGmailAuth(req);
+  if (!auth) return gmailAuthRequired();
+
   try {
-    const { to, subject, message } = await req.json();
-    const authHeader = req.headers.get("authorization");
+    const body = await req.json();
+    const { subject = "", message, isHtml, threadId, inReplyTo, references, replyToEmailId } = body ?? {};
 
-    if (!authHeader) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (typeof subject !== "string" || typeof message !== "string" || message.length > MAX_BODY_CHARS) {
+      return NextResponse.json({ error: "Invalid subject or message." }, { status: 400 });
+    }
+    if (threadId !== undefined && (typeof threadId !== "string" || !/^[a-zA-Z0-9]+$/.test(threadId))) {
+      return NextResponse.json({ error: "Invalid thread." }, { status: 400 });
     }
 
-    // MIME Email String
-    const mimeEmail = [
-      "Content-Type: text/plain; charset=\"UTF-8\"\n",
-      "MIME-Version: 1.0\n",
-      "Content-Transfer-Encoding: 7bit\n",
-      `To: ${to}\n`,
-      `Subject: ${subject}\n\n`,
-      message
-    ].join("");
+    const raw = buildRawMessage({
+      to: parseRecipients(body.to, "To", true),
+      cc: parseRecipients(body.cc, "Cc"),
+      bcc: parseRecipients(body.bcc, "Bcc"),
+      subject: subject.slice(0, 1000),
+      ...(isHtml ? { html: message } : { text: message }),
+      inReplyTo: typeof inReplyTo === "string" ? inReplyTo : undefined,
+      references: typeof references === "string" ? references : undefined,
+    });
 
-    // (Google's requirement)
-    const encodedMail = Buffer.from(mimeEmail)
-      .toString("base64")
-      .replace(/\+/g, "-") // Convert + to -
-      .replace(/\//g, "_") // Convert / to _
-      .replace(/=+$/, ""); // Remove padding at the end
-
-    const response = await fetch(
-      "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
-      {
-        method: "POST",
-        headers: {
-          Authorization: authHeader,
-          "Content-Type": "application/json",
-        },
-
-        body: JSON.stringify({ raw: encodedMail }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("GOOGLE API EXACT ERROR:", errorData); 
-      throw new Error(`Google rejected the email: ${errorData.error?.message || "Unknown error"}`);
+    await gmailFetch(auth.accessToken, "messages/send", {
+      method: "POST",
+      body: JSON.stringify({ raw, ...(threadId ? { threadId } : {}) }),
+    });
+    // Replying takes the original off the Needs Reply list
+    if (typeof replyToEmailId === "string" && /^[a-zA-Z0-9]+$/.test(replyToEmailId)) {
+      await dbConnect();
+      await EmailAnalysis.updateOne({ emailId: replyToEmailId, userEmail: auth.email }, { $set: { requires_reply: false } });
     }
-
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.log("Send Error:", error);
-    return NextResponse.json({ error: "Failed to send email" }, { status: 500 })
+    if (error instanceof MimeError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return gmailErrorResponse(error, "Send failed");
   }
 }

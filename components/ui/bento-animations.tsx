@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calendar, Tag, Database, Bot, Sparkles, Send, Mail } from "lucide-react";
+import { Calendar, Database, Send, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // 1. Train Your AI: The "Entity Extraction" Beam
@@ -35,7 +35,7 @@ export const TrainYourAIAnimation = () => {
                 <div className="flex items-start gap-3 relative z-10 w-full">
                     <div className="w-2.5 h-2.5 rounded-full bg-amber-500 mt-1 shrink-0" />
                     <p className="text-[11px] sm:text-sm text-zinc-400 font-medium relative leading-relaxed w-full">
-                        "Flag all emails containing an{" "}
+                        &ldquo;Flag all emails containing an{" "}
                         <span className="relative inline-block">
                             {/* Invisible placeholder to maintain spacing */}
                             <span className="opacity-0">invoice</span>
@@ -60,7 +60,7 @@ export const TrainYourAIAnimation = () => {
                                 )}
                             </AnimatePresence>
                         </span>
-                        {" "}or a payment request due within 7 days."
+                        {" "}or a payment request due within 7 days.&rdquo;
                     </p>
 
                     {/* Vertical Scanner Beam */}

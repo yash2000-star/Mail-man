@@ -3,16 +3,16 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { PenLine, Search, ClipboardList, Clock, LayoutPanelLeft, X, ArrowUp } from "lucide-react";
+import { AiProvider, PROVIDER_LABELS } from "@/lib/ai-providers";
 
 interface AiChatProps {
   isOpen: boolean;
   onClose: () => void;
   emails: any[];
-  apiKeys: {
-    gemini: string;
-    openai: string;
-    anthropic: string;
-  };
+  /** Providers the user has a saved key for. */
+  availableProviders: AiProvider[];
+  defaultProvider: AiProvider | null;
+  onOpenSettings: () => void;
 }
 
 // The premium Mail-man AI Auto-fill prompts
@@ -22,10 +22,10 @@ const SUGGESTED_PROMPTS = [
   { text: "Summarize all security alerts from Google.", icon: ClipboardList },
 ];
 
-export default function AiChat({ isOpen, onClose, emails, apiKeys }: AiChatProps) {
+export default function AiChat({ isOpen, onClose, emails, availableProviders, defaultProvider, onOpenSettings }: AiChatProps) {
   const { data: session } = useSession();
   const [input, setInput] = useState("");
-  const [selectedModel, setSelectedModel] = useState("gemini-1.5-pro");
+  const [chosenProvider, setChosenProvider] = useState<AiProvider | null>(null);
   // Start with an empty chat history so we can show the welcome screen!
   const [messages, setMessages] = useState<{ role: string; content: string }[]>(
     [],
@@ -35,47 +35,23 @@ export default function AiChat({ isOpen, onClose, emails, apiKeys }: AiChatProps
   // Extract user's first name for the greeting, default to "User" if not found
   const userName = session?.user?.name ? session.user.name : "User";
 
+  // The user's pick if it still has a key, else their default, else any saved key
+  const provider =
+    (chosenProvider && availableProviders.includes(chosenProvider) && chosenProvider) ||
+    (defaultProvider && availableProviders.includes(defaultProvider) && defaultProvider) ||
+    availableProviders[0] ||
+    null;
+
   if (!isOpen) return null;
 
   const sendMessage = async (overridePrompt?: string) => {
     const promptText = overridePrompt || input;
     if (!promptText.trim() || isLoading) return;
 
-    // 1. SECURITY CHECK: Grab the correct key!
-    let activeKey = "";
-    let providerName = "";
-    let finalModelStr = selectedModel;
-
-    if (selectedModel.includes("gemini")) {
-      activeKey = apiKeys.gemini;
-      providerName = "Google Gemini";
-    } else if (selectedModel.includes("gpt")) {
-      activeKey = apiKeys.openai;
-      providerName = "OpenAI";
-    } else if (selectedModel.includes("claude")) {
-      activeKey = apiKeys.anthropic;
-      providerName = "Anthropic Claude";
-    }
-
-    // Auto-Fallback: If the current model has no key, but they PROVIDED another key, use the one they have!
-    if (!activeKey) {
-      if (apiKeys.openai) {
-        activeKey = apiKeys.openai;
-        finalModelStr = "gpt-4o";
-        setSelectedModel("gpt-4o");
-      } else if (apiKeys.anthropic) {
-        activeKey = apiKeys.anthropic;
-        finalModelStr = "claude-3-opus";
-        setSelectedModel("claude-3-opus");
-      } else if (apiKeys.gemini) {
-        activeKey = apiKeys.gemini;
-        finalModelStr = "gemini-1.5-pro";
-        setSelectedModel("gemini-1.5-pro");
-      } else {
-        // They literally have 0 keys.
-        setMessages((prev) => [...prev, { role: "ai", content: `⚠️ Please click the Gear icon in the bottom left to add an API Key first!` }]);
-        return;
-      }
+    if (!provider) {
+      setMessages((prev) => [...prev, { role: "ai", content: "Add an AI API key in Settings to start chatting." }]);
+      onOpenSettings();
+      return;
     }
 
     // 2. Add user message to UI
@@ -85,8 +61,8 @@ export default function AiChat({ isOpen, onClose, emails, apiKeys }: AiChatProps
     setIsLoading(true);
 
     try {
-      // 3 Only send the last 4 messages to save tokens!
-      const recentHistory = newMessages.slice(-4);
+      // Only send the last few messages to save tokens
+      const recentHistory = newMessages.slice(-6);
 
       // Only send the 5 most recent emails to save tokens!
       const recentEmails = emails.slice(0, 5).map(e => ({
@@ -100,11 +76,9 @@ export default function AiChat({ isOpen, onClose, emails, apiKeys }: AiChatProps
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: promptText,
           history: recentHistory,
           emails: recentEmails,
-          apiKey: activeKey,
-          model: finalModelStr
+          provider,
         }),
       });
 
@@ -114,7 +88,7 @@ export default function AiChat({ isOpen, onClose, emails, apiKeys }: AiChatProps
 
       setMessages((prev) => [...prev, { role: "ai", content: data.reply }]);
     } catch (error: any) {
-      setMessages((prev) => [...prev, { role: "ai", content: `❌ Error: ${error.message || "Failed to connect to Gemini."}` }]);
+      setMessages((prev) => [...prev, { role: "ai", content: `Error: ${error.message || "Could not reach the AI. Please try again."}` }]);
     } finally {
       setIsLoading(false);
     }
@@ -133,15 +107,20 @@ export default function AiChat({ isOpen, onClose, emails, apiKeys }: AiChatProps
             <h2 className="text-[20px] font-black tracking-tighter text-amber-500">
               MAIL-MAN AI
             </h2>
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="bg-zinc-900 border border-zinc-800/60 text-zinc-300 text-[11px] font-black uppercase tracking-widest rounded-lg px-2 py-1 outline-none cursor-pointer focus:border-amber-500/50 transition-all hover:bg-zinc-800"
-            >
-              <option value="gemini-1.5-pro" className="bg-zinc-900">Gemini 1.5 Pro</option>
-              <option value="gpt-4o" className="bg-zinc-900">ChatGPT-4o</option>
-              <option value="claude-3-opus" className="bg-zinc-900">Claude 3 Opus</option>
-            </select>
+            {availableProviders.length > 1 ? (
+              <select
+                aria-label="AI provider"
+                value={provider ?? ""}
+                onChange={(e) => setChosenProvider(e.target.value as AiProvider)}
+                className="bg-zinc-900 border border-zinc-800/60 text-zinc-300 text-[11px] font-black uppercase tracking-widest rounded-lg px-2 py-1 outline-none cursor-pointer focus:border-amber-500/50 transition-all hover:bg-zinc-800"
+              >
+                {availableProviders.map((p) => (
+                  <option key={p} value={p} className="bg-zinc-900">{PROVIDER_LABELS[p]}</option>
+                ))}
+              </select>
+            ) : provider ? (
+              <span className="text-zinc-500 text-[11px] font-black uppercase tracking-widest">{PROVIDER_LABELS[provider]}</span>
+            ) : null}
           </div>
 
           {/* Top Right Mini Controls Pill */}
@@ -203,13 +182,15 @@ export default function AiChat({ isOpen, onClose, emails, apiKeys }: AiChatProps
                 </div>
               ))}
 
-              <div className="flex gap-3">
-                <div className="bg-zinc-900 border border-zinc-800/60 p-4 rounded-2xl rounded-tl-none text-zinc-500 flex gap-1 items-center h-[52px]">
-                  <span className="animate-bounce inline-block w-1.5 h-1.5 bg-amber-500 rounded-full" />
-                  <span className="animate-bounce delay-100 inline-block w-1.5 h-1.5 bg-amber-500 rounded-full" />
-                  <span className="animate-bounce delay-200 inline-block w-1.5 h-1.5 bg-amber-500 rounded-full" />
+              {isLoading && (
+                <div className="flex gap-3">
+                  <div className="bg-zinc-900 border border-zinc-800/60 p-4 rounded-2xl rounded-tl-none text-zinc-500 flex gap-1 items-center h-[52px]">
+                    <span className="animate-bounce inline-block w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                    <span className="animate-bounce delay-100 inline-block w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                    <span className="animate-bounce delay-200 inline-block w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>

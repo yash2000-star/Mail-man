@@ -13,27 +13,19 @@ const ThemeContext = createContext<ThemeContextType>({
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-    const [isDark, setIsDark] = useState(false);
+    const [isDark, setIsDark] = useState(
+        () => typeof window !== "undefined" && localStorage.getItem("mailman-theme") === "dark"
+    );
 
-    // On mount, read from localStorage and apply the class
+    // Keep the <html> class in sync with the saved preference
     useEffect(() => {
-        const saved = localStorage.getItem("filo-theme");
-        if (saved === "dark") {
-            document.documentElement.classList.add("dark");
-            setIsDark(true);
-        }
-    }, []);
+        document.documentElement.classList.toggle("dark", isDark);
+    }, [isDark]);
 
     const toggleTheme = () => {
         const newDark = !isDark;
         setIsDark(newDark);
-        if (newDark) {
-            document.documentElement.classList.add("dark");
-            localStorage.setItem("filo-theme", "dark");
-        } else {
-            document.documentElement.classList.remove("dark");
-            localStorage.setItem("filo-theme", "light");
-        }
+        localStorage.setItem("mailman-theme", newDark ? "dark" : "light");
     };
 
     return (
