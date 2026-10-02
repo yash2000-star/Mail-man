@@ -2,6 +2,8 @@
 
 An AI-powered Gmail client. Mail-man signs you in with Google, reads your inbox, and uses your own AI API key to sort mail, summarise it, draft replies, pull out to-dos, and answer questions about your inbox.
 
+**Live:** https://mail-man-yash.vercel.app
+
 ## Features
 
 - **Smart inbox**: each email is categorised (Important, Promotions, Social, Spam, General) with a one-line summary.
