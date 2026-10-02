@@ -45,7 +45,8 @@ export async function POST(req: Request) {
 
     const task: Task = {
         id: randomUUID(),
-        emailId: "",
+        // Set when the task is made from an email ("Add to To-do")
+        emailId: typeof body?.emailId === "string" && /^[a-zA-Z0-9]{1,64}$/.test(body.emailId) ? body.emailId : "",
         title,
         dueDate: cleanDueDate(body?.dueDate),
         date: "",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { toast } from "@/lib/toast";
 import { useSession } from "next-auth/react";
 import dynamic from "next/dynamic";
 import "react-quill-new/dist/quill.snow.css";
@@ -245,7 +246,7 @@ export default function ComposeModal({
       }
     } catch (error: any) {
       console.error("AI Enhance failed:", error);
-      alert(`AI failed to enhance the message: ${error.message}`);
+      toast(`AI failed to enhance the message: ${error.message}`, "error");
     } finally {
       setIsEnhancing(false);
     }

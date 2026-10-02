@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getGmailAuth } from '@/lib/gmail';
 import { getSessionEmail } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
@@ -143,5 +144,37 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error("User POST error:", error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+}
+
+/**
+ * Deletes everything Mail-man stores for the user (settings, encrypted keys,
+ * labels, tasks and AI results) and revokes its Google access. Gmail itself is
+ * untouched.
+ */
+export async function DELETE(req: NextRequest) {
+    const email = await getSessionEmail();
+    if (!email) return unauthorized();
+
+    try {
+        await dbConnect();
+        await Promise.all([
+            User.deleteOne({ email }),
+            EmailAnalysis.deleteMany({ userEmail: email }),
+        ]);
+
+        // Best effort: the user can also remove access at myaccount.google.com
+        const auth = await getGmailAuth(req).catch(() => null);
+        if (auth) {
+            await fetch("https://oauth2.googleapis.com/revoke", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({ token: auth.accessToken }),
+            }).catch(() => null);
+        }
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error("User DELETE error:", error);
+        return NextResponse.json({ error: 'Could not delete your data. Please try again.' }, { status: 500 });
     }
 }

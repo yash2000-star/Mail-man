@@ -1,14 +1,5 @@
 @import "tailwindcss";
 
-/* ==========================================
-   TAILWIND v4: Enable class-based dark mode
-   This tells Tailwind to activate all dark:
-   variants when the <html> element has the
-   "dark" class applied.
-   ========================================== */
-@variant dark (&:where(.dark, .dark *));
-
-
 :root {
   --background: #000000;
   --foreground: #ffffff;
@@ -26,13 +17,6 @@ body {
   color: var(--foreground);
   font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
 }
-
-/* Dark mode global override */
-html.dark body {
-  background: #0f172a;
-  color: #f1f5f9;
-}
-
 
 /* --- UTILITY CLASSES --- */
 /* Completely hides the scrollbar visually, but still allows scrolling! */

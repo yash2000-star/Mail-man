@@ -2,18 +2,20 @@
 
 An AI-powered Gmail client. Mail-man signs you in with Google, reads your inbox, and uses your own AI API key to sort mail, summarise it, draft replies, pull out to-dos, and answer questions about your inbox.
 
-**Live:** https://mail-man-yash.vercel.app
+**Live:** https://mail-man-yash.vercel.app · **[Try the demo](https://mail-man-yash.vercel.app/demo)** (sample inbox, no sign-in or API key needed)
 
 ## Features
 
 - **Smart inbox**: each email is categorised (Important, Promotions, Social, Spam, General) with a one-line summary.
-- **Suggested replies**: a draft reply for emails that need one, sent in one click.
-- **To-do extraction**: action items and deadlines pulled from your mail into a task dashboard.
-- **Smart Labels**: describe a label in plain English and the AI applies it to matching emails.
+- **Suggested replies and Needs Reply**: a draft reply for emails that need one, sent in one click, and a list of everything still waiting on you.
+- **Smart Labels**: describe a label in plain English and the AI applies it to new mail, and optionally to your recent inbox.
+- **To-dos**: action items and deadlines pulled from your mail into a dashboard grouped by overdue, today and upcoming; add your own or turn any email into a to-do.
+- **Full mail client**: conversations, every Gmail folder, search, paging, drafts with autosave, attachments, reply and forward with the original quoted.
 - **Compose assistant**: rewrite a draft in a chosen tone or language, or write one from a short instruction.
 - **Inbox chat**: ask questions about your recent mail.
 - **Bring your own key, any provider**: every AI feature works with a Google Gemini, OpenAI or Anthropic Claude key. Keys are encrypted (AES-256) in MongoDB and only used server-side; the browser never sees them.
-- Archive, trash, star and read/unread actions sync back to Gmail; responsive layout for mobile.
+- Archive, trash, spam, star and read/unread actions sync back to Gmail; responsive layout for mobile.
+- **Live demo** at `/demo`: the real app running against an in-browser sample mailbox (`lib/demo`), so nothing reaches Gmail, the database or an AI provider.
 
 ## Tech stack
 
@@ -30,8 +32,10 @@ An AI-powered Gmail client. Mail-man signs you in with Google, reads your inbox,
 
 ```
 app/
-  page.tsx            Main app (landing page when signed out, mail client when signed in)
+  page.tsx            Landing page when signed out, mail client when signed in
+  demo/               The app on a sample inbox (no sign-in)
   setup/              First-run onboarding: add an AI key
+  privacy/, terms/    Privacy policy and terms of service
   api/
     auth/             NextAuth Google sign-in and token refresh
     classify/         Categorise + summarise + suggest replies (cached per email)
@@ -39,11 +43,15 @@ app/
     ai/reply/         Reply drafting
     ai/enhance/       Compose assistant
     chat/             Inbox chat (Gemini / OpenAI / Anthropic)
+    gmail/            Mailbox lists, messages, conversations, attachments
     action/           Gmail label changes (archive, trash, star, read)
-    send/             Send email through Gmail
-    user/             User settings: AI keys, labels, tasks
-components/           UI components (feed, reading pane, compose, sidebar, chat, ...)
-lib/                  AI provider layer, auth, MongoDB connection, encryption, env helpers
+    send/, drafts/    Send email and save drafts through Gmail
+    labels/           Smart Labels: create, edit, delete, scan, assign
+    tasks/            To-do list
+    user/             User settings and AI keys; DELETE removes all of a user's data
+components/           UI components (MailApp, feed, reading pane, compose, sidebar, chat, ...)
+lib/                  Gmail, MIME, AI provider layer, auth, encryption, env helpers
+lib/demo/             Sample mailbox and in-browser API used by /demo
 models/               Mongoose models: User, EmailAnalysis
 ```
 
@@ -74,7 +82,7 @@ Requirements: Node.js 20 or newer, a MongoDB database, and a Google Cloud projec
 ### Google OAuth setup
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), create a project and enable the **Gmail API**.
-2. Configure the **OAuth consent screen**: user type *External*, add the scopes `gmail.readonly`, `gmail.send` and `gmail.modify`, and add your Google account under **Test users**.
+2. Configure the **OAuth consent screen**: user type *External*, add the scopes `gmail.readonly`, `gmail.send` and `gmail.modify`, set the privacy policy and terms links to `https://<your-domain>/privacy` and `https://<your-domain>/terms`, and add your Google account under **Test users**.
 3. Create an **OAuth client ID** of type *Web application* with these authorized redirect URIs:
    - `http://localhost:3000/api/auth/callback/google`
    - `https://<your-domain>/api/auth/callback/google`
@@ -107,3 +115,4 @@ CI runs lint, type-check and build on every pull request and every push to `main
 - AI API keys are encrypted at rest with AES-256, read only on the server, and never returned to the browser.
 - Every AI and settings API route requires a signed-in session.
 - The settings API only accepts a fixed set of fields, and outgoing mail headers are validated.
+- Settings > **Delete my data** removes everything Mail-man stores for a user and revokes its Google access.

@@ -30,9 +30,9 @@ const USE_CASES_DATA = [
     },
     {
         icon: <Shield className="text-amber-400" size={28} />,
-        title: "Enterprise Teams",
-        desc: "Classify thousands of emails per team with custom labels, private key vaults, and thread summaries.",
-        details: "Scale your email operations with absolute privacy. Mail-man processes everything in-memory using your own LLM keys, ensuring your enterprise data never touches our disks.",
+        title: "Busy Inboxes",
+        desc: "Cut through hundreds of emails a week with categories, summaries and a Needs Reply list.",
+        details: "Mail-man sorts and summarizes new mail with your own AI key, flags what needs an answer, and drafts the reply. Your emails stay in Gmail; only summaries, labels and tasks are saved.",
         layerColor: "bg-amber-400/15 border-amber-400/30",
         iconColor: "text-amber-400/70",
     }
