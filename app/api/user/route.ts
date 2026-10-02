@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getSessionEmail } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
-import { encryptApiKey, decryptApiKey } from '@/lib/encryption';
+import { encryptApiKey } from '@/lib/encryption';
+import { AI_PROVIDERS, AiProvider, isAiProvider } from '@/lib/ai';
+import { KEY_FIELDS, keyHint, providersWithKeys } from '@/lib/user-ai';
+import { unauthorized } from '@/lib/api-response';
 
-const API_KEY_FIELDS = ['geminiApiKey', 'openAiApiKey', 'anthropicApiKey'] as const;
 const MAX_KEY_LENGTH = 512;
 const MAX_LABELS = 100;
 const MAX_TASKS = 2000;
@@ -46,29 +47,52 @@ function sanitizeTasks(input: unknown) {
     return tasks;
 }
 
+interface UserDoc {
+    email: string;
+    aiProvider?: string;
+    geminiApiKey?: string;
+    openAiApiKey?: string;
+    anthropicApiKey?: string;
+    customLabels?: unknown[];
+    globalTasks?: unknown[];
+}
+
+/**
+ * What the browser gets back. API keys never leave the server: the client
+ * only learns which providers have a key saved and its last 4 characters.
+ */
+function toClient(user: UserDoc) {
+    const available = providersWithKeys(user);
+    const savedKeys = Object.fromEntries(
+        AI_PROVIDERS.map((p) => [p, { saved: available.includes(p), hint: keyHint(user[KEY_FIELDS[p]]) }]),
+    ) as Record<AiProvider, { saved: boolean; hint: string }>;
+    const aiProvider = isAiProvider(user.aiProvider) && available.includes(user.aiProvider)
+        ? user.aiProvider
+        : available[0] ?? null;
+
+    return {
+        email: user.email,
+        aiProvider,
+        savedKeys,
+        customLabels: user.customLabels ?? [],
+        globalTasks: user.globalTasks ?? [],
+    };
+}
+
 export async function GET() {
+    const email = await getSessionEmail();
+    if (!email) return unauthorized();
+
     try {
-        const session = await getServerSession(authOptions);
-        if (!session || !session.user || !session.user.email) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
         await dbConnect();
+        // Find the user, or create one on their first visit
+        const user = await User.findOneAndUpdate(
+            { email },
+            { $setOnInsert: { email } },
+            { new: true, upsert: true },
+        ).lean<UserDoc>();
 
-        // Find User, or create one if this is their first time!
-        let user = await User.findOne({ email: session.user.email });
-
-        if (!user) {
-            user = await User.create({ email: session.user.email });
-        }
-
-        // Decrypt keys before sending to frontend!
-        const userObj = user.toObject();
-        if (userObj.geminiApiKey) userObj.geminiApiKey = decryptApiKey(userObj.geminiApiKey);
-        if (userObj.openAiApiKey) userObj.openAiApiKey = decryptApiKey(userObj.openAiApiKey);
-        if (userObj.anthropicApiKey) userObj.anthropicApiKey = decryptApiKey(userObj.anthropicApiKey);
-
-        return NextResponse.json(userObj, { status: 200 });
+        return NextResponse.json(toClient(user!), { status: 200 });
     } catch (error) {
         console.error("User GET error:", error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -76,12 +100,10 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-    try {
-        const session = await getServerSession(authOptions);
-        if (!session || !session.user || !session.user.email) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+    const email = await getSessionEmail();
+    if (!email) return unauthorized();
 
+    try {
         await dbConnect();
 
         // Only these fields may be written by the client. Anything else in the
@@ -99,7 +121,7 @@ export async function POST(req: Request) {
 
         const updateData: Record<string, unknown> = {};
 
-        for (const field of API_KEY_FIELDS) {
+        for (const field of Object.values(KEY_FIELDS)) {
             const value = body[field];
             if (value === undefined) continue;
             if (typeof value !== 'string' || value.length > MAX_KEY_LENGTH) {
@@ -108,6 +130,13 @@ export async function POST(req: Request) {
             const key = value.trim();
             // Empty string clears the key
             updateData[field] = key ? encryptApiKey(key) : '';
+        }
+
+        if (body.aiProvider !== undefined) {
+            if (!isAiProvider(body.aiProvider)) {
+                return NextResponse.json({ error: 'Invalid aiProvider' }, { status: 400 });
+            }
+            updateData.aiProvider = body.aiProvider;
         }
 
         if (body.customLabels !== undefined) {
@@ -123,18 +152,12 @@ export async function POST(req: Request) {
         }
 
         const user = await User.findOneAndUpdate(
-            { email: session.user.email },
-            { $set: updateData },
-            { new: true, upsert: true, runValidators: true }
-        );
+            { email },
+            Object.keys(updateData).length > 0 ? { $set: updateData } : { $setOnInsert: { email } },
+            { new: true, upsert: true, runValidators: true },
+        ).lean<UserDoc>();
 
-        // Decrypt back for the response so frontend state stays in sync
-        const userObj = user.toObject();
-        if (userObj.geminiApiKey) userObj.geminiApiKey = decryptApiKey(userObj.geminiApiKey);
-        if (userObj.openAiApiKey) userObj.openAiApiKey = decryptApiKey(userObj.openAiApiKey);
-        if (userObj.anthropicApiKey) userObj.anthropicApiKey = decryptApiKey(userObj.anthropicApiKey);
-
-        return NextResponse.json(userObj, { status: 200 });
+        return NextResponse.json(toClient(user!), { status: 200 });
     } catch (error) {
         console.error("User POST error:", error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -113,14 +113,9 @@ export default function ComposeModal({
   };
 
   const handleAIEnhance = async () => {
-    if (!message.trim() || message === "<p><br></p>") return;
-
-    // Grab the BYOK key from the vault!
-    const apiKey = localStorage.getItem("gemini_api_key");
-    if (!apiKey) {
-      alert("⚠️ Please click the Gear icon in the bottom left to add your Gemini API Key first!");
-      return;
-    }
+    const hasDraft = message.trim() !== "" && message !== "<p><br></p>";
+    // Allow writing from scratch when there's an instruction but no draft
+    if (!hasDraft && !aiCommand.trim()) return;
 
     setIsEnhancing(true);
 
@@ -130,7 +125,6 @@ export default function ComposeModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           draft: message,
-          apiKey: apiKey,
           language: selectedLanguage,
           style: selectedStyle,
           command: aiCommand

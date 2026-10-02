@@ -18,6 +18,12 @@ const UserSchema = new mongoose.Schema({
         type: String,
         default: "",
     },
+    // Which saved key AI features use by default
+    aiProvider: {
+        type: String,
+        enum: ["gemini", "openai", "anthropic", ""],
+        default: "",
+    },
     isPremium: {
         type: Boolean,
         default: false,

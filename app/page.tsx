@@ -13,9 +13,16 @@ import ToDoDashboard from "@/components/ToDoDashboard";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
+import { AI_PROVIDERS, AiProvider, SavedKeys } from "@/lib/ai-providers";
 import {
   Bot, Mail, Menu, ListTodo, Pencil
 } from "lucide-react";
+
+const NO_SAVED_KEYS: SavedKeys = {
+  gemini: { saved: false, hint: "" },
+  openai: { saved: false, hint: "" },
+  anthropic: { saved: false, hint: "" },
+};
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -36,9 +43,10 @@ export default function Home() {
   const [customLabels, setCustomLabels] = useState<any[]>([]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [geminiApiKey, setGeminiApiKey] = useState("");
-  const [openAiApiKey, setOpenAiApiKey] = useState("");
-  const [anthropicApiKey, setAnthropicApiKey] = useState("");
+  // Which AI keys the user has saved (the keys themselves stay on the server)
+  const [savedKeys, setSavedKeys] = useState<SavedKeys>(NO_SAVED_KEYS);
+  const [aiProvider, setAiProvider] = useState<AiProvider | null>(null);
+  const hasAiKey = AI_PROVIDERS.some((p) => savedKeys[p].saved);
   const [isScanningTasks, setIsScanningTasks] = useState(false);
   // Prevents flash of dashboard before the API-key check completes
   const [isCheckingKey, setIsCheckingKey] = useState(true);
@@ -118,7 +126,7 @@ export default function Home() {
   const fetchEmails = async (
     mailboxToFetch = activeMailbox,
     searchString = "",
-    overrideApiKey?: string
+    aiReady: boolean = hasAiKey
   ) => {
     // Safety Check
     if (!(session as any)?.accessToken) return;
@@ -207,10 +215,9 @@ export default function Home() {
         }
 
         // 2. BATCH AUTO-PILOT ENGAGE
-        const currentApiKey = overrideApiKey || geminiApiKey;
-        if (currentApiKey) {
-          await classifyEmailsBatch(cleanEmails, currentApiKey);
-          await extractTasksAndLabelsBatch(cleanEmails, currentApiKey);
+        if (aiReady) {
+          const keyOk = await classifyEmailsBatch(cleanEmails);
+          if (keyOk) await extractTasksAndLabelsBatch(cleanEmails);
         }
       } else {
         setIsFetching(false);
@@ -227,12 +234,8 @@ export default function Home() {
 
   // --- ⚡ UPGRADED SAFETY BATCH PROCESSING ---
 
-  const classifyEmailsBatch = async (allEmails: any[], apiKey: string) => {
-    if (!apiKey) {
-      // No key — open the settings modal so the user can add one
-      setIsSettingsOpen(true);
-      return;
-    }
+  /** Returns false when the AI key is missing or rejected, so callers stop early. */
+  const classifyEmailsBatch = async (allEmails: any[]): Promise<boolean> => {
 
     // The backend now intelligently filters out already classified emails!
     // We just pass the entire batch directly to the secure route.
@@ -247,39 +250,25 @@ export default function Home() {
         const response = await fetch("/api/classify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ emails: payload, apiKey }),
+          body: JSON.stringify({ emails: payload }),
         });
 
-        if (response.status === 429) {
-          console.error("Rate limit hit! Injecting failure states into UI.");
-          // Inject a failure state so the UI stops spinning
-          const failedResults = payload.map(e => ({
-            id: e.id,
-            category: "Limit Reached",
-            summary: "Gemini API rate limit exceeded. Please try again later or add a paid API key.",
-            requires_reply: false,
-            draft_reply: ""
-          }));
-          updateEmailStateWithAiData(failedResults);
-          continue;
-        }
+        const results = await response.json().catch(() => ({ error: "Unexpected server response." }));
 
-        const results = await response.json();
-
-        // Handle explicit backend errors (timeout, invalid key, etc.)
-        if (results.error) {
-          console.error("Backend Error:", results.error);
-          const isTimeout = results.error.toLowerCase().includes("timed out") || results.error.toLowerCase().includes("timeout");
-          const errorResults = payload.map(e => ({
+        if (!response.ok || results.error) {
+          const message: string = results.error || "Summary unavailable.";
+          updateEmailStateWithAiData(payload.map((e) => ({
             id: e.id,
-            category: "Error",
-            summary: isTimeout
-              ? "Summary unavailable (Timeout — server was busy, try refreshing)"
-              : `Summary unavailable (${results.error})`,
+            category: response.status === 429 ? "Limit Reached" : "Error",
+            summary: `Summary unavailable: ${message}`,
             requires_reply: false,
-            draft_reply: ""
-          }));
-          updateEmailStateWithAiData(errorResults);
+            draft_reply: "",
+          })));
+          // A missing or rejected key fails every chunk the same way: ask once and stop
+          if (results.code === "NO_AI_KEY" || results.code === "invalid_key") {
+            setIsSettingsOpen(true);
+            return false;
+          }
           continue;
         }
 
@@ -304,6 +293,7 @@ export default function Home() {
         updateEmailStateWithAiData(catchErrorResults);
       }
     }
+    return true;
   };
 
   // Helper to keep the code clean
@@ -323,7 +313,7 @@ export default function Home() {
     });
   };
 
-  const extractTasksAndLabelsBatch = async (emailList: any[], apiKey: string) => {
+  const extractTasksAndLabelsBatch = async (emailList: any[]) => {
     try {
       const response = await fetch("/api/ai/tasks", {
         method: "POST",
@@ -334,8 +324,6 @@ export default function Home() {
             sender: e.from,
             content: `Subject: ${e.subject}\n\n${e.body.substring(0, 1000)}`
           })),
-          apiKey: apiKey,
-          customLabels: customLabels
         }),
       });
 
@@ -413,7 +401,7 @@ export default function Home() {
         setSelectedEmail({ ...selectedEmail, isStarred: false });
     } else if (action === "reply") {
       if (selectedEmail) {
-        const senderEmail = selectedEmail.from.match(/<(.*)>/)?.[1] || selectedEmail.from;
+        const senderEmail = selectedEmail.fromEmail || selectedEmail.from;
         setDraftData({
           to: senderEmail,
           subject: selectedEmail.subject?.startsWith("Re:") ? selectedEmail.subject : `Re: ${selectedEmail.subject}`,
@@ -483,17 +471,15 @@ export default function Home() {
   };
   // THE AI AUTO-REPLY ENGINE
   const handleAiReply = async (email: any) => {
-    if (!geminiApiKey) {
-      alert(
-        "⚠️ Please click the Gear icon in the bottom left to add your Gemini API Key first!",
-      );
+    if (!hasAiKey) {
+      setIsSettingsOpen(true);
       return;
     }
     setIsAiThinking(true);
 
     try {
       const senderName = email.from.split("<")[0].replace(/"/g, "").trim();
-      const senderEmail = email.from.match(/<(.*)>/)?.[1] || email.from;
+      const senderEmail = email.fromEmail || email.from;
 
       const response = await fetch("/api/ai/reply", {
         method: "POST",
@@ -501,11 +487,15 @@ export default function Home() {
         body: JSON.stringify({
           emailBody: email.body,
           senderName,
-          apiKey: geminiApiKey,
         }),
       });
 
       const data = await response.json();
+      if (!response.ok) {
+        if (data.code === "NO_AI_KEY" || data.code === "invalid_key") setIsSettingsOpen(true);
+        alert(data.error || "AI failed to generate a reply. Please try again.");
+        return;
+      }
 
       if (data.reply) {
         setDraftData({
@@ -598,21 +588,19 @@ export default function Home() {
         initializationRef.current = true;
 
         // 1. Fetch User Data from MongoDB First!
-        let fetchedApiKey = "";
+        let aiReady = false;
         try {
           const res = await fetch('/api/user');
           if (res.ok) {
             const userData = await res.json();
-            if (userData.geminiApiKey) {
-              setGeminiApiKey(userData.geminiApiKey);
-              fetchedApiKey = userData.geminiApiKey;
-            } else {
-              // New user with no API key — send to the onboarding setup page
+            aiReady = AI_PROVIDERS.some((p) => userData.savedKeys?.[p]?.saved);
+            if (!aiReady) {
+              // New user with no AI key: send them to onboarding
               router.replace("/setup");
               return; // keep isCheckingKey=true so nothing flashes before redirect
             }
-            if (userData.openAiApiKey) setOpenAiApiKey(userData.openAiApiKey);
-            if (userData.anthropicApiKey) setAnthropicApiKey(userData.anthropicApiKey);
+            setSavedKeys(userData.savedKeys);
+            setAiProvider(userData.aiProvider);
             if (userData.customLabels) setCustomLabels(userData.customLabels);
             if (userData.globalTasks) setGlobalTasks(userData.globalTasks);
           }
@@ -633,8 +621,8 @@ export default function Home() {
           }
         }
 
-        // 3. Perform a silent background fetch to sync any new emails (Supply key explicitly to dodge stale closures)
-        fetchEmails(undefined, undefined, fetchedApiKey);
+        // 3. Background fetch for new emails (pass aiReady explicitly: state isn't updated yet)
+        fetchEmails(undefined, undefined, aiReady);
       }
     };
     initializeApp();
@@ -691,8 +679,8 @@ export default function Home() {
               onViewEmail={handleViewEmail}
               isScanning={isScanningTasks}
               onScan={async () => {
-                if (!geminiApiKey) {
-                  alert("⚠️ Please add your Gemini API Key in Settings first.");
+                if (!hasAiKey) {
+                  setIsSettingsOpen(true);
                   return;
                 }
                 if (emails.length === 0) {
@@ -703,7 +691,7 @@ export default function Home() {
                 setIsScanningTasks(true);
                 try {
                   // Pass the currently loaded emails into the batch processor
-                  await extractTasksAndLabelsBatch(emails.slice(0, 30), geminiApiKey);
+                  await extractTasksAndLabelsBatch(emails.slice(0, 30));
                 } finally {
                   setIsScanningTasks(false);
                 }
@@ -745,7 +733,9 @@ export default function Home() {
             isOpen={isAiChatOpen}
             onClose={() => setIsAiChatOpen(false)}
             emails={emails}
-            apiKeys={{ gemini: geminiApiKey, openai: openAiApiKey, anthropic: anthropicApiKey }}
+            availableProviders={AI_PROVIDERS.filter((p) => savedKeys[p].saved)}
+            defaultProvider={aiProvider}
+            onOpenSettings={() => setIsSettingsOpen(true)}
           />
         </div>
 
@@ -754,19 +744,22 @@ export default function Home() {
         <SettingsModal
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
-          initialKeys={{ gemini: geminiApiKey, openai: openAiApiKey, anthropic: anthropicApiKey }}
-          onSaveDb={async (keys) => {
-            setGeminiApiKey(keys.geminiApiKey);
-            setOpenAiApiKey(keys.openAiApiKey);
-            setAnthropicApiKey(keys.anthropicApiKey);
+          savedKeys={savedKeys}
+          aiProvider={aiProvider}
+          onSave={async (update) => {
             try {
-              await fetch('/api/user', {
+              const res = await fetch('/api/user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(keys),
+                body: JSON.stringify(update),
               });
-            } catch (e) {
-              console.error("Failed to sync API keys", e);
+              const data = await res.json();
+              if (!res.ok) return data.error || "Could not save your settings.";
+              setSavedKeys(data.savedKeys);
+              setAiProvider(data.aiProvider);
+              return null;
+            } catch {
+              return "Could not reach the server. Check your connection.";
             }
           }}
         />
@@ -799,11 +792,11 @@ export default function Home() {
                 body: JSON.stringify({ customLabels: updatedLabels }),
               });
 
-              if (newLabel.applyRetroactively && geminiApiKey && emails.length > 0) {
+              if (newLabel.applyRetroactively && hasAiKey && emails.length > 0) {
                 const emailsToProcess = emails.slice(0, 50);
                 alert(`Success! "${newLabel.name}" saved. Mail-man is now retroactively scanning your last 50 emails...`);
                 // Use the existing batch processor to scan the slice
-                extractTasksAndLabelsBatch(emailsToProcess, geminiApiKey);
+                extractTasksAndLabelsBatch(emailsToProcess);
               } else {
                 alert(`Success! "${newLabel.name}" safely stored. Mail-man will now automatically scan new incoming emails.`);
               }

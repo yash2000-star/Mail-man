@@ -11,8 +11,8 @@ An AI-powered Gmail client. Mail-man signs you in with Google, reads your inbox,
 - **To-do extraction**: action items and deadlines pulled from your mail into a task dashboard.
 - **Smart Labels**: describe a label in plain English and the AI applies it to matching emails.
 - **Compose assistant**: rewrite a draft in a chosen tone or language, or write one from a short instruction.
-- **Inbox chat**: ask questions about recent mail using Gemini, GPT-4o or Claude.
-- **Bring your own key**: AI calls use the user's own key, stored encrypted (AES-256) in MongoDB.
+- **Inbox chat**: ask questions about your recent mail.
+- **Bring your own key, any provider**: every AI feature works with a Google Gemini, OpenAI or Anthropic Claude key. Keys are encrypted (AES-256) in MongoDB and only used server-side; the browser never sees them.
 - Archive, trash, star and read/unread actions sync back to Gmail; responsive layout for mobile.
 
 ## Tech stack
@@ -23,7 +23,7 @@ An AI-powered Gmail client. Mail-man signs you in with Google, reads your inbox,
 | Styling | Tailwind CSS 4, Framer Motion, lucide-react |
 | Auth | NextAuth 4 with Google OAuth (Gmail read, send, modify scopes) |
 | Database | MongoDB with Mongoose |
-| AI | Google Gemini, OpenAI, Anthropic SDKs |
+| AI | Google Gemini, OpenAI and Anthropic SDKs behind one interface (`lib/ai.ts`) |
 | Hosting | Vercel |
 
 ## Project structure
@@ -43,7 +43,7 @@ app/
     send/             Send email through Gmail
     user/             User settings: AI keys, labels, tasks
 components/           UI components (feed, reading pane, compose, sidebar, chat, ...)
-lib/                  MongoDB connection, encryption, env helpers
+lib/                  AI provider layer, auth, MongoDB connection, encryption, env helpers
 models/               Mongoose models: User, EmailAnalysis
 ```
 
@@ -69,7 +69,7 @@ Requirements: Node.js 20 or newer, a MongoDB database, and a Google Cloud projec
    npm run dev
    ```
 
-4. Open http://localhost:3000, sign in with Google, and add a Gemini API key (free from [Google AI Studio](https://aistudio.google.com/app/apikey)) when asked.
+4. Open http://localhost:3000, sign in with Google, and add an AI key when asked: Gemini (free from [Google AI Studio](https://aistudio.google.com/app/apikey)), [OpenAI](https://platform.openai.com/api-keys) or [Anthropic](https://console.anthropic.com/settings/keys).
 
 ### Google OAuth setup
 
@@ -104,5 +104,6 @@ CI runs lint, type-check and build on every pull request and every push to `main
 ## Security
 
 - Email HTML is rendered in a sandboxed iframe with scripts disabled.
-- AI API keys are encrypted at rest with AES-256.
+- AI API keys are encrypted at rest with AES-256, read only on the server, and never returned to the browser.
+- Every AI and settings API route requires a signed-in session.
 - The settings API only accepts a fixed set of fields, and outgoing mail headers are validated.
