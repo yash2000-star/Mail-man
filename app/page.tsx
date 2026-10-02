@@ -26,6 +26,19 @@ const NO_SAVED_KEYS: SavedKeys = {
   anthropic: { saved: false, hint: "" },
 };
 
+interface ComposeData {
+  to: string;
+  subject: string;
+  body: string;
+  replyTo?: { emailId: string; threadId: string; messageId: string; references: string };
+  /** Original message shown below the editor and appended on send */
+  quotedHtml?: string;
+  /** A saved Gmail draft being reopened */
+  draft?: { draftId: string; cc: string; bcc: string; attachments: MailMessage["attachments"] };
+}
+
+const EMPTY_COMPOSE: ComposeData = { to: "", subject: "", body: "" };
+
 /** AI fields already on an email, so a reload of the message doesn't drop them. */
 function pickAnalysis(email: MailAnalysis): MailAnalysis {
   const picked: MailAnalysis = {};
@@ -48,12 +61,9 @@ export default function Home() {
   const [isAiChatOpen, setIsAiChatOpen] = useState(false);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [activeMailbox, setActiveMailbox] = useState("Inbox");
-  const [draftData, setDraftData] = useState<{
-    to: string;
-    subject: string;
-    body: string;
-    replyTo?: { emailId: string; threadId: string; messageId: string; references: string };
-  }>({ to: "", subject: "", body: "" });
+  const [draftData, setDraftData] = useState<ComposeData>(EMPTY_COMPOSE);
+  // Remounts Compose for each new message so its fields start fresh
+  const [composeKey, setComposeKey] = useState(0);
   // Paging and search for the current mailbox
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -198,6 +208,10 @@ export default function Home() {
   };
 
   const handleSelectEmail = async (email: any) => {
+    if (activeMailbox === "Draft") {
+      openDraft(email.id);
+      return;
+    }
     setSelectedEmail(email);
     if (email.isUnread) handleEmailAction(email.id, "read");
     if (email.body !== undefined) return;
@@ -346,29 +360,59 @@ export default function Home() {
     text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
   /** Opens Compose as a threaded reply, or as a forward that includes the original. */
+  const openCompose = (data: ComposeData) => {
+    setDraftData(data);
+    setComposeKey((k) => k + 1);
+    setIsComposeOpen(true);
+  };
+
+  /** The original email as HTML, safe to place inside a quote. */
+  const originalAsHtml = (original: MailMessage) =>
+    original.bodyIsHtml
+      ? original.body
+      : `<div style="white-space:pre-wrap">${escapeHtml(original.body || original.snippet || "")}</div>`;
+
+  /** Opens Compose as a threaded reply, or as a forward; the original is quoted below. */
   const startReplyOrForward = (original: MailMessage, mode: "reply" | "forward", body = "") => {
     const baseSubject = (original.subject || "").replace(/^((re|fwd?):\s*)+/i, "");
+    const sender = `${escapeHtml(original.from)} &lt;${escapeHtml(original.fromEmail)}&gt;`;
     if (mode === "reply") {
-      setDraftData({
+      openCompose({
         to: original.fromEmail || original.from,
         subject: `Re: ${baseSubject}`,
         body,
         replyTo: { emailId: original.id, threadId: original.threadId, messageId: original.messageId, references: original.references },
+        quotedHtml: `<div class="gmail_quote"><div>On ${escapeHtml(original.date)}, ${sender} wrote:</div>`
+          + `<blockquote class="gmail_quote" style="margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex">`
+          + `${originalAsHtml(original)}</blockquote></div>`,
       });
     } else {
-      const originalBody = original.bodyIsHtml
-        ? original.body
-        : `<div style="white-space:pre-wrap">${escapeHtml(original.body || "")}</div>`;
-      setDraftData({
+      openCompose({
         to: "",
         subject: `Fwd: ${baseSubject}`,
-        body: `<p><br></p><p>---------- Forwarded message ----------</p>`
-          + `<p>From: ${escapeHtml(original.from)} &lt;${escapeHtml(original.fromEmail)}&gt;<br>`
-          + `Date: ${escapeHtml(original.date)}<br>Subject: ${escapeHtml(original.subject)}<br>To: ${escapeHtml(original.to)}</p>`
-          + originalBody,
+        body,
+        quotedHtml: `<div class="gmail_quote"><div>---------- Forwarded message ----------</div>`
+          + `<div>From: ${sender}<br>Date: ${escapeHtml(original.date)}<br>Subject: ${escapeHtml(original.subject)}<br>To: ${escapeHtml(original.to)}</div><br>`
+          + `${originalAsHtml(original)}</div>`,
       });
     }
-    setIsComposeOpen(true);
+  };
+
+  /** Clicking a message in Drafts reopens it in Compose. */
+  const openDraft = async (messageId: string) => {
+    const response = await fetch(`/api/drafts?messageId=${encodeURIComponent(messageId)}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      alert(data.error || "Could not open the draft.");
+      return;
+    }
+    const draft: MailMessage = data.message;
+    openCompose({
+      to: draft.to,
+      subject: draft.subject === "(no subject)" ? "" : draft.subject,
+      body: draft.bodyIsHtml ? draft.body : `<p>${escapeHtml(draft.body).replace(/\n/g, "<br>")}</p>`,
+      draft: { draftId: data.draftId, cc: draft.cc, bcc: draft.bcc, attachments: draft.attachments },
+    });
   };
 
   // Quick action
@@ -743,7 +787,7 @@ export default function Home() {
           <Sidebar
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            onCompose={() => setIsComposeOpen(true)}
+            onCompose={() => openCompose(EMPTY_COMPOSE)}
             activeMailbox={activeMailbox}
             onSelectMailbox={openMailbox}
             onOpenSettings={() => setIsSettingsOpen(true)}
@@ -863,16 +907,22 @@ export default function Home() {
 
         {isComposeOpen && (
           <ComposeModal
+            key={composeKey}
             isOpen={isComposeOpen}
             onClose={() => {
               setIsComposeOpen(false);
-              setDraftData({ to: "", subject: "", body: "" });
+              setDraftData(EMPTY_COMPOSE);
             }}
             defaultTo={draftData.to}
             defaultSubject={draftData.subject}
             defaultBody={draftData.body}
             replyTo={draftData.replyTo}
+            quotedHtml={draftData.quotedHtml}
+            draft={draftData.draft}
             onReplySent={handleMarkHandled}
+            onDraftsChanged={() => {
+              if (activeMailbox === "Draft") fetchEmails("Draft");
+            }}
           />
         )}
 
@@ -902,7 +952,7 @@ export default function Home() {
             <span className="text-[10px] font-bold">Inbox</span>
           </button>
           <button
-            onClick={() => setIsComposeOpen(true)}
+            onClick={() => openCompose(EMPTY_COMPOSE)}
             className="flex flex-col items-center gap-1 text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition px-3 py-2"
           >
             <Pencil size={22} strokeWidth={1.8} />

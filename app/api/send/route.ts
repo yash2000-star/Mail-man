@@ -1,47 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getGmailAuth, gmailFetch } from "@/lib/gmail";
-import { buildRawMessage, MimeError, parseRecipients } from "@/lib/mime";
+import { getDraftAttachments, getGmailAuth, gmailFetch, gmailUpload, GmailError } from "@/lib/gmail";
+import { buildMimeMessage, MimeError } from "@/lib/mime";
+import { parseComposeRequest } from "@/lib/compose-request";
 import { gmailAuthRequired, gmailErrorResponse } from "@/lib/api-response";
 import dbConnect from "@/lib/mongodb";
 import EmailAnalysis from "@/models/EmailAnalysis";
 
-const MAX_BODY_CHARS = 500_000;
+export const maxDuration = 60;
 
 /**
- * POST /api/send
- * { to, cc?, bcc?, subject, message, isHtml?, threadId?, inReplyTo?, references?, replyToEmailId? }
+ * POST /api/send: JSON, or multipart/form-data with attachments.
+ * Fields: to, cc?, bcc?, subject, message, isHtml?, threadId?, inReplyTo?,
+ * references?, draftId? (deleted after sending), replyToEmailId?
  */
 export async function POST(req: NextRequest) {
   const auth = await getGmailAuth(req);
   if (!auth) return gmailAuthRequired();
 
   try {
-    const body = await req.json();
-    const { subject = "", message, isHtml, threadId, inReplyTo, references, replyToEmailId } = body ?? {};
-
-    if (typeof subject !== "string" || typeof message !== "string" || message.length > MAX_BODY_CHARS) {
-      return NextResponse.json({ error: "Invalid subject or message." }, { status: 400 });
-    }
-    if (threadId !== undefined && (typeof threadId !== "string" || !/^[a-zA-Z0-9]+$/.test(threadId))) {
-      return NextResponse.json({ error: "Invalid thread." }, { status: 400 });
+    const { message, threadId, draftId, replyToEmailId, keepDraftAttachments } = await parseComposeRequest(req, true);
+    if (draftId && keepDraftAttachments.length > 0) {
+      const kept = await getDraftAttachments(auth.accessToken, draftId, keepDraftAttachments);
+      message.attachments = [...kept, ...(message.attachments ?? [])];
     }
 
-    const raw = buildRawMessage({
-      to: parseRecipients(body.to, "To", true),
-      cc: parseRecipients(body.cc, "Cc"),
-      bcc: parseRecipients(body.bcc, "Bcc"),
-      subject: subject.slice(0, 1000),
-      ...(isHtml ? { html: message } : { text: message }),
-      inReplyTo: typeof inReplyTo === "string" ? inReplyTo : undefined,
-      references: typeof references === "string" ? references : undefined,
-    });
+    await gmailUpload(auth.accessToken, "messages/send", "POST", threadId ? { threadId } : {}, buildMimeMessage(message));
 
-    await gmailFetch(auth.accessToken, "messages/send", {
-      method: "POST",
-      body: JSON.stringify({ raw, ...(threadId ? { threadId } : {}) }),
-    });
+    // The draft has become a sent message: remove it from Drafts
+    if (draftId) {
+      await gmailFetch(auth.accessToken, `drafts/${draftId}`, { method: "DELETE" }).catch((error) => {
+        if (!(error instanceof GmailError && error.status === 404)) console.error("Draft cleanup failed:", error);
+      });
+    }
+
     // Replying takes the original off the Needs Reply list
-    if (typeof replyToEmailId === "string" && /^[a-zA-Z0-9]+$/.test(replyToEmailId)) {
+    if (replyToEmailId) {
       await dbConnect();
       await EmailAnalysis.updateOne({ emailId: replyToEmailId, userEmail: auth.email }, { $set: { requires_reply: false } });
     }

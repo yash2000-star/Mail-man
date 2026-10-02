@@ -60,6 +60,48 @@ export async function gmailFetch<T>(accessToken: string, path: string, init?: Re
         const data = await response.json().catch(() => ({}));
         throw new GmailError(response.status, data?.error?.message || `Gmail request failed (${response.status})`);
     }
+    // Deletes answer 204 with no body
+    const text = await response.text();
+    return (text ? JSON.parse(text) : undefined) as T;
+}
+
+/**
+ * Sends a full RFC 5322 message through Gmail's multipart upload endpoint
+ * (up to 35 MB, with attachments), alongside JSON metadata such as threadId.
+ */
+export async function gmailUpload<T>(
+    accessToken: string,
+    path: string,
+    method: "POST" | "PUT",
+    metadata: object,
+    mimeMessage: string,
+): Promise<T> {
+    const boundary = `mm_upload_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+    const body = [
+        `--${boundary}`,
+        "Content-Type: application/json; charset=UTF-8",
+        "",
+        JSON.stringify(metadata),
+        `--${boundary}`,
+        "Content-Type: message/rfc822",
+        "",
+        mimeMessage,
+        `--${boundary}--`,
+    ].join("\r\n");
+
+    const response = await fetch(`https://gmail.googleapis.com/upload/gmail/v1/users/me/${path}?uploadType=multipart`, {
+        method,
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": `multipart/related; boundary=${boundary}`,
+        },
+        body,
+        cache: "no-store",
+    });
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new GmailError(response.status, data?.error?.message || `Gmail upload failed (${response.status})`);
+    }
     return response.json() as Promise<T>;
 }
 
@@ -194,6 +236,7 @@ export function toMailMessage(message: GmailMessage): MailMessage {
         body: part?.body?.data ? decodeBody(part.body.data, contentType) : "",
         bodyIsHtml: Boolean(html),
         attachments,
+        bcc: header(headers, "Bcc"),
         messageId: header(headers, "Message-ID") || header(headers, "Message-Id"),
         references: header(headers, "References"),
     };
@@ -280,4 +323,52 @@ export async function getMailMessages(accessToken: string, ids: string[]): Promi
         }
     });
     return messages.filter((m): m is MailMessage => m !== null);
+}
+
+/* ---------- Drafts ---------- */
+
+interface GmailDraft {
+    id: string;
+    message: GmailMessage;
+}
+
+export async function getDraft(accessToken: string, draftId: string): Promise<{ draftId: string; message: MailMessage }> {
+    const draft = await gmailFetch<GmailDraft>(accessToken, `drafts/${encodeURIComponent(draftId)}?format=full`);
+    return { draftId: draft.id, message: toMailMessage(draft.message) };
+}
+
+/** Finds the draft that holds a given message (as listed in the Draft folder). */
+export async function findDraftByMessageId(accessToken: string, messageId: string): Promise<string | null> {
+    let pageToken: string | undefined;
+    for (let page = 0; page < 5; page++) {
+        const params = new URLSearchParams({ maxResults: "100" });
+        if (pageToken) params.set("pageToken", pageToken);
+        const data = await gmailFetch<{ drafts?: { id: string; message: { id: string } }[]; nextPageToken?: string }>(
+            accessToken,
+            `drafts?${params}`,
+        );
+        const match = data.drafts?.find((d) => d.message.id === messageId);
+        if (match) return match.id;
+        if (!data.nextPageToken) return null;
+        pageToken = data.nextPageToken;
+    }
+    return null;
+}
+
+/** Downloads selected attachments of a saved draft, to carry them into a new version. */
+export async function getDraftAttachments(
+    accessToken: string,
+    draftId: string,
+    attachmentIds: string[],
+): Promise<{ filename: string; mimeType: string; data: Buffer }[]> {
+    if (attachmentIds.length === 0) return [];
+    const { message } = await getDraft(accessToken, draftId);
+    const wanted = message.attachments.filter((a) => attachmentIds.includes(a.attachmentId));
+    return mapLimit(wanted, CONCURRENCY, async (a) => {
+        const data = await gmailFetch<{ data: string }>(
+            accessToken,
+            `messages/${message.id}/attachments/${encodeURIComponent(a.attachmentId)}`,
+        );
+        return { filename: a.filename, mimeType: a.mimeType, data: Buffer.from(data.data, "base64url") };
+    });
 }

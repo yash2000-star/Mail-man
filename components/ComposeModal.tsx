@@ -1,14 +1,20 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import dynamic from "next/dynamic";
 import "react-quill-new/dist/quill.snow.css";
 
 import {
-  X, Minus, Maximize2, Paperclip, ImageIcon, Trash2, Bold, Italic, Underline, AlignLeft, Send,
-  ChevronDown, Sparkles, Globe
+  X, Minus, Maximize2, Paperclip, ImageIcon, Trash2, Bold, Italic, Underline, Send,
+  ChevronDown, Sparkles, Globe, List
 } from "lucide-react";
+import EmailBodyFrame from "./EmailBodyFrame";
+import type { MailAttachment } from "@/lib/mail-types";
+
+/** Matches the server limit (Vercel caps request bodies at 4.5 MB). */
+const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+const AUTOSAVE_DELAY_MS = 2500;
 
 // import Quill dynamically so Next.js doesn't crash on the server
 const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false }) as any;
@@ -30,6 +36,12 @@ interface ComposeModalProps {
   replyTo?: { emailId: string; threadId: string; messageId: string; references: string };
   /** Called after a reply is sent, with the id of the email replied to */
   onReplySent?: (emailId: string) => void;
+  /** The original message, quoted below the editor and appended when sending */
+  quotedHtml?: string;
+  /** Set when reopening a saved Gmail draft */
+  draft?: { draftId: string; cc: string; bcc: string; attachments: MailAttachment[] };
+  /** Called when a draft is created, updated, sent or discarded */
+  onDraftsChanged?: () => void;
 }
 
 export default function ComposeModal({
@@ -40,14 +52,17 @@ export default function ComposeModal({
   defaultBody = "",
   replyTo,
   onReplySent,
+  quotedHtml = "",
+  draft,
+  onDraftsChanged,
 }: ComposeModalProps) {
   const { data: session } = useSession();
 
   const [to, setTo] = useState(defaultTo);
-  const [cc, setCc] = useState("");
-  const [bcc, setBcc] = useState("");
-  const [showCc, setShowCc] = useState(false);
-  const [showBcc, setShowBcc] = useState(false);
+  const [cc, setCc] = useState(draft?.cc ?? "");
+  const [bcc, setBcc] = useState(draft?.bcc ?? "");
+  const [showCc, setShowCc] = useState(Boolean(draft?.cc));
+  const [showBcc, setShowBcc] = useState(Boolean(draft?.bcc));
 
   const [selectedLanguage, setSelectedLanguage] = useState("English");
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
@@ -59,7 +74,18 @@ export default function ComposeModal({
   const [showFormatting, setShowFormatting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
+  // Attachments already saved on the Gmail draft being edited
+  const [keptAttachments, setKeptAttachments] = useState<MailAttachment[]>(draft?.attachments ?? []);
+  const [showQuoted, setShowQuoted] = useState(false);
+
+  // Draft autosave
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(draft ? "saved" : "idle");
+  const [isDirty, setIsDirty] = useState(false);
+  const draftIdRef = useRef(draft?.draftId);
+  const savingRef = useRef<Promise<void> | null>(null);
+  const markDirty = () => setIsDirty(true);
 
   const [windowState, setWindowState] = useState<"default" | "minimized" | "fullscreen">("default");
 
@@ -77,35 +103,103 @@ export default function ComposeModal({
     setMessage(defaultBody);
   }, [defaultTo, defaultSubject, defaultBody]);
 
-  if (!isOpen) return null;
+  /** Fields shared by send and draft save. The quoted original goes after the editor content. */
+  const buildPayload = () => ({
+    to,
+    cc,
+    bcc,
+    subject,
+    message: quotedHtml ? `${message}<br>${quotedHtml}` : message,
+    isHtml: true,
+    draftId: draftIdRef.current,
+    keepDraftAttachments: keptAttachments.map((a) => a.attachmentId),
+    ...(replyTo ? {
+      threadId: replyTo.threadId,
+      inReplyTo: replyTo.messageId || undefined,
+      references: replyTo.references || undefined,
+      replyToEmailId: replyTo.emailId,
+    } : {}),
+  });
+
+  /** JSON, or multipart form data when files are attached. */
+  const requestInit = (includeFiles: boolean): RequestInit => {
+    const payload = buildPayload();
+    if (includeFiles && attachments.length > 0) {
+      const form = new FormData();
+      form.append("payload", JSON.stringify(payload));
+      attachments.forEach((file) => form.append("attachments", file, file.name));
+      return { method: "POST", body: form };
+    }
+    return { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) };
+  };
+
+  const attachmentBytes = attachments.reduce((sum, f) => sum + f.size, 0);
+  const isEmpty = !to.trim() && !subject.trim() && (!message.trim() || message === "<p><br></p>") && attachments.length === 0;
+
+  /** Saves to Gmail Drafts. Files are uploaded only on explicit saves (closing), not every autosave. */
+  const saveDraft = useCallback(async (includeFiles: boolean) => {
+    if (savingRef.current) await savingRef.current; // one save at a time, so a new draft isn't created twice
+    const run = (async () => {
+      setSaveStatus("saving");
+      try {
+        const response = await fetch("/api/drafts", requestInit(includeFiles));
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error);
+        draftIdRef.current = data.draftId;
+        // Files saved with the draft are tracked by their (new) Gmail ids from now on
+        if (includeFiles) setAttachments([]);
+        setKeptAttachments(data.attachments ?? []);
+        setSaveStatus("saved");
+        onDraftsChanged?.();
+      } catch {
+        setSaveStatus("error");
+      }
+    })();
+    savingRef.current = run;
+    await run;
+    savingRef.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [to, cc, bcc, subject, message, attachments, keptAttachments, quotedHtml, replyTo]);
+
+  // Autosave a few seconds after the user stops typing
+  useEffect(() => {
+    if (!isOpen || !isDirty || isEmpty) return;
+    const timer = setTimeout(() => {
+      setIsDirty(false);
+      saveDraft(false);
+    }, AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isDirty, to, cc, bcc, subject, message]);
+
+  /** Closing keeps the work: save (with files) if anything changed, then close. */
+  const handleClose = async () => {
+    if (!isEmpty && (isDirty || attachments.length > 0)) await saveDraft(true);
+    onClose();
+  };
+
+  const handleDiscard = async () => {
+    if (!isEmpty && !confirm("Discard this draft?")) return;
+    if (savingRef.current) await savingRef.current;
+    if (draftIdRef.current) {
+      await fetch(`/api/drafts?id=${encodeURIComponent(draftIdRef.current)}`, { method: "DELETE" }).catch(() => null);
+      onDraftsChanged?.();
+    }
+    onClose();
+  };
 
   const handleSend = async () => {
-    // message is HTML from the editor (e.g. "<p><strong>Hello</strong></p>")
     if (!to.trim() || !message.trim() || message === "<p><br></p>") return;
+    if (attachmentBytes > MAX_ATTACHMENT_BYTES) {
+      setSendError("Attachments can total at most 4 MB.");
+      return;
+    }
 
     setIsSending(true);
     setSendError("");
-
     try {
-      const response = await fetch("/api/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to,
-          cc,
-          bcc,
-          subject,
-          message,
-          isHtml: true,
-          ...(replyTo ? {
-            threadId: replyTo.threadId,
-            inReplyTo: replyTo.messageId || undefined,
-            references: replyTo.references || undefined,
-            replyToEmailId: replyTo.emailId,
-          } : {}),
-        }),
-      });
-
+      if (savingRef.current) await savingRef.current; // send the latest draft id
+      const response = await fetch("/api/send", requestInit(true));
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         setSendError(data.error || "Could not send the email. Please try again.");
@@ -113,13 +207,7 @@ export default function ComposeModal({
       }
 
       if (replyTo) onReplySent?.(replyTo.emailId);
-      setTo("");
-      setCc("");
-      setBcc("");
-      setShowCc(false);
-      setShowBcc(false);
-      setSubject("");
-      setMessage("");
+      if (draftIdRef.current) onDraftsChanged?.();
       setWindowState("default");
       onClose();
     } catch {
@@ -174,18 +262,25 @@ export default function ComposeModal({
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setAttachments((prev) => [...prev, ...Array.from(e.target.files as FileList)]);
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ""; // allow picking the same file again
+    if (files.length === 0) return;
+    const total = attachmentBytes + files.reduce((sum, f) => sum + f.size, 0);
+    if (total > MAX_ATTACHMENT_BYTES) {
+      setSendError("Attachments can total at most 4 MB.");
+      return;
     }
-    // reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    setSendError("");
+    setAttachments((prev) => [...prev, ...files]);
+    markDirty();
   };
 
   const removeAttachment = (index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
+    markDirty();
   };
+
+  if (!isOpen) return null;
 
   // Determine container classes based on window state
   const wrapperClasses = windowState === "fullscreen"
@@ -212,9 +307,9 @@ export default function ComposeModal({
         >
           <div className="flex items-center gap-1.5">
             <button
-              onClick={(e) => { e.stopPropagation(); onClose(); setWindowState("default"); }}
+              onClick={(e) => { e.stopPropagation(); handleClose(); }}
               className="p-1.5 text-zinc-500 hover:text-zinc-100 hover:bg-zinc-900 rounded-lg transition"
-              title="Close"
+              title="Close (saved to Drafts)"
             >
               <X size={16} strokeWidth={2} />
             </button>
@@ -238,7 +333,13 @@ export default function ComposeModal({
           </div>
 
           <div className="flex items-center gap-3">
-            {sendError && <span role="alert" className="text-rose-400 text-xs font-medium max-w-[260px] text-right">{sendError}</span>}
+            {sendError ? (
+              <span role="alert" className="text-rose-400 text-xs font-medium max-w-[260px] text-right">{sendError}</span>
+            ) : (
+              <span className="text-zinc-500 text-xs" aria-live="polite">
+                {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved to Drafts" : saveStatus === "error" ? "Couldn't save draft" : ""}
+              </span>
+            )}
             <button
               onClick={handleSend}
               disabled={isSending || !to.trim() || !message.trim()}
@@ -257,7 +358,8 @@ export default function ComposeModal({
             <input
               type="text"
               value={to}
-              onChange={(e) => setTo(e.target.value)}
+              onChange={(e) => { setTo(e.target.value); markDirty(); }}
+              aria-label="To"
               className="flex-1 bg-transparent text-zinc-100 text-sm outline-none font-bold h-8"
             />
           </div>
@@ -290,7 +392,8 @@ export default function ComposeModal({
             <input
               type="text"
               value={cc}
-              onChange={(e) => setCc(e.target.value)}
+              onChange={(e) => { setCc(e.target.value); markDirty(); }}
+              aria-label="Cc"
               autoFocus
               className="flex-1 bg-transparent text-zinc-100 text-sm outline-none font-bold h-8"
             />
@@ -304,7 +407,8 @@ export default function ComposeModal({
             <input
               type="text"
               value={bcc}
-              onChange={(e) => setBcc(e.target.value)}
+              onChange={(e) => { setBcc(e.target.value); markDirty(); }}
+              aria-label="Bcc"
               autoFocus
               className="flex-1 bg-transparent text-zinc-100 text-sm outline-none font-bold h-8"
             />
@@ -325,7 +429,8 @@ export default function ComposeModal({
           <input
             type="text"
             value={subject}
-            onChange={(e) => setSubject(e.target.value)}
+            onChange={(e) => { setSubject(e.target.value); markDirty(); }}
+            aria-label="Subject"
             className="flex-1 bg-transparent text-zinc-100 text-sm outline-none font-bold h-8 placeholder:font-normal placeholder:text-zinc-600"
           />
         </div>
@@ -344,7 +449,10 @@ export default function ComposeModal({
             ref={quillRef}
             theme="snow"
             value={message}
-            onChange={setMessage}
+            onChange={(value: string, _delta: unknown, source: string) => {
+              setMessage(value);
+              if (source === "user") markDirty();
+            }}
             modules={{ toolbar: false }}
             placeholder="Start typing or write with AI"
           />
@@ -423,19 +531,52 @@ export default function ComposeModal({
           </div>
         </div>
 
+        {/* Quoted original (kept out of the editor so its formatting survives) */}
+        {quotedHtml && (
+          <div className="px-6 py-2 border-t border-zinc-800/60">
+            <button
+              onClick={() => setShowQuoted(!showQuoted)}
+              className="text-xs font-bold text-zinc-500 hover:text-zinc-200 transition"
+              aria-expanded={showQuoted}
+            >
+              {showQuoted ? "Hide quoted message" : "··· Show quoted message"}
+            </button>
+            {showQuoted && (
+              <div className="mt-2 max-h-56 overflow-y-auto rounded-xl bg-white p-4">
+                <EmailBodyFrame html={quotedHtml} isHtml title="Quoted message" />
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Attachments List */}
-        {attachments.length > 0 && (
+        {(attachments.length > 0 || keptAttachments.length > 0) && (
           <div className="px-6 py-3 flex items-center gap-3 flex-wrap border-t border-zinc-800/60 bg-zinc-900/10">
-            {attachments.map((file, i) => (
-              <div key={i} className="flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800/60 rounded-xl text-sm font-bold text-zinc-300 shadow-xl animate-in zoom-in duration-200">
+            {keptAttachments.map((file) => (
+              <div key={file.attachmentId} className="flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800/60 rounded-xl text-sm font-bold text-zinc-300 shadow-xl">
                 <Paperclip size={14} className="text-amber-500" />
-                <span className="max-w-[150px] truncate">{file.name}</span>
-                <span className="text-zinc-600 text-xs">({(file.size / 1024).toFixed(0)}kb)</span>
-                <button onClick={() => removeAttachment(i)} className="ml-1 text-zinc-500 hover:text-red-500 transition">
+                <span className="max-w-[150px] truncate">{file.filename}</span>
+                <span className="text-zinc-600 text-xs">({Math.max(1, Math.round(file.size / 1024))} KB)</span>
+                <button
+                  onClick={() => { setKeptAttachments((prev) => prev.filter((a) => a.attachmentId !== file.attachmentId)); markDirty(); }}
+                  aria-label={`Remove ${file.filename}`}
+                  className="ml-1 text-zinc-500 hover:text-red-500 transition"
+                >
                   <X size={14} />
                 </button>
               </div>
             ))}
+            {attachments.map((file, i) => (
+              <div key={`${file.name}-${i}`} className="flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800/60 rounded-xl text-sm font-bold text-zinc-300 shadow-xl animate-in zoom-in duration-200">
+                <Paperclip size={14} className="text-amber-500" />
+                <span className="max-w-[150px] truncate">{file.name}</span>
+                <span className="text-zinc-600 text-xs">({Math.max(1, Math.round(file.size / 1024))} KB)</span>
+                <button onClick={() => removeAttachment(i)} aria-label={`Remove ${file.name}`} className="ml-1 text-zinc-500 hover:text-red-500 transition">
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+            <span className="text-zinc-600 text-xs ml-auto">{(attachmentBytes / 1024 / 1024).toFixed(1)} / 4 MB</span>
           </div>
         )}
 
@@ -465,10 +606,16 @@ export default function ComposeModal({
             </button>
             <div className="w-px h-4 bg-zinc-800 mx-1" />
             <button
-              className={`w-8 h-8 flex items-center justify-center rounded-lg transition text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100`}
-              title="Align Left"
+              onClick={() => {
+                const editor = quillRef.current?.getEditor();
+                if (!editor) return;
+                editor.format("list", editor.getFormat().list === "bullet" ? false : "bullet", "user");
+                setActiveFormats(editor.getFormat());
+              }}
+              className={`w-8 h-8 flex items-center justify-center rounded-lg transition ${activeFormats.list === "bullet" ? "bg-amber-500 text-black shadow-lg" : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"}`}
+              title="Bulleted list"
             >
-              <AlignLeft size={16} strokeWidth={2.5} />
+              <List size={16} strokeWidth={2.5} />
             </button>
           </div>
         )}
@@ -521,6 +668,14 @@ export default function ComposeModal({
               ref={fileInputRef}
               onChange={handleFileChange}
             />
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              className="hidden"
+              ref={imageInputRef}
+              onChange={handleFileChange}
+            />
 
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -531,14 +686,15 @@ export default function ComposeModal({
             </button>
 
             <button
+              onClick={() => imageInputRef.current?.click()}
               className="w-9 h-9 flex items-center justify-center hover:bg-zinc-900 hover:text-zinc-100 rounded-full transition"
-              title="Insert image"
+              title="Attach images"
             >
               <ImageIcon size={18} strokeWidth={2} />
             </button>
 
             <button
-              onClick={onClose}
+              onClick={handleDiscard}
               className="w-9 h-9 flex items-center justify-center hover:bg-zinc-900 hover:text-red-500 rounded-full transition ml-1"
               title="Discard draft"
             >

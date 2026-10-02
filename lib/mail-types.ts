@@ -46,6 +46,8 @@ export interface MailMessage extends MailItem {
     body: string;
     bodyIsHtml: boolean;
     attachments: MailAttachment[];
+    /** Only present on drafts and sent mail */
+    bcc: string;
     /** RFC 5322 Message-ID, used to thread replies */
     messageId: string;
     references: string;
