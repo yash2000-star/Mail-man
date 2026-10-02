@@ -32,7 +32,7 @@ const looksLikeHtml = (body: string) => /<[a-z!/][\s\S]*>/i.test(body);
  */
 export default function EmailBodyFrame({ html, title = "Email content", isHtml }: EmailBodyFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [height, setHeight] = useState(200);
+  const [height, setHeight] = useState(120);
 
   const srcDoc = useMemo(() => {
     const content = (isHtml ?? looksLikeHtml(html))
@@ -47,6 +47,7 @@ export default function EmailBodyFrame({ html, title = "Email content", isHtml }
 <base target="_blank">
 <style>
   html, body { margin: 0; padding: 0; }
+  body { display: flow-root; }
   body { font-family: 'Inter', 'Segoe UI', Arial, sans-serif; font-size: 16px; line-height: 1.8; color: #18181b; word-wrap: break-word; overflow-wrap: anywhere; }
   img { max-width: 100%; height: auto; }
   table { max-width: 100%; }
@@ -65,7 +66,11 @@ export default function EmailBodyFrame({ html, title = "Email content", isHtml }
     const measure = () => {
       const doc = iframe.contentDocument;
       if (!doc?.documentElement) return;
-      setHeight(Math.max(doc.documentElement.scrollHeight, doc.body?.scrollHeight ?? 0));
+      // Measure the content, not the frame: <html> is always at least as tall
+      // as the iframe itself, so measuring it would never let short emails shrink
+      const body = doc.body;
+      if (!body) return;
+      setHeight(Math.max(24, Math.ceil(body.getBoundingClientRect().height)));
     };
 
     const onLoad = () => {

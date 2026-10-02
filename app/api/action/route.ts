@@ -21,13 +21,16 @@ export async function POST(req: NextRequest) {
     if (!auth) return gmailAuthRequired();
 
     try {
-        const { id, action } = await req.json();
+        // { id, action } changes one message; { threadId, action } the whole conversation
+        const { id, threadId, action } = await req.json();
         const change = typeof action === "string" ? ACTIONS[action] : undefined;
-        if (typeof id !== "string" || !/^[a-zA-Z0-9]+$/.test(id) || !change) {
+        const target = typeof threadId === "string" ? `threads/${threadId}` : `messages/${id}`;
+        const targetId = typeof threadId === "string" ? threadId : id;
+        if (typeof targetId !== "string" || !/^[a-zA-Z0-9]+$/.test(targetId) || !change) {
             return NextResponse.json({ error: "Invalid action" }, { status: 400 });
         }
 
-        await gmailFetch(auth.accessToken, `messages/${id}/modify`, {
+        await gmailFetch(auth.accessToken, `${target}/modify`, {
             method: "POST",
             body: JSON.stringify({ addLabelIds: change.add ?? [], removeLabelIds: change.remove ?? [] }),
         });

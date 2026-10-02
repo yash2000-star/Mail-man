@@ -218,6 +218,40 @@ export function toMailItem(message: GmailMessage): MailItem {
         isUnread: labels.includes("UNREAD"),
         isStarred: labels.includes("STARRED"),
         hasAttachment: /multipart\/mixed/i.test(header(headers, "Content-Type")) || collectAttachments(message.payload).length > 0,
+        timestamp: Number(message.internalDate) || 0,
+    };
+}
+
+/* ---------- Conversations ---------- */
+
+interface GmailThread {
+    id: string;
+    messages?: GmailMessage[];
+}
+
+/**
+ * One list row for a conversation: the newest message, with the other
+ * side's name (not the user's own reply), and unread/starred if any message is.
+ */
+export function toThreadItem(thread: GmailThread, userEmail: string): MailItem | null {
+    const messages = [...(thread.messages ?? [])].sort((a, b) => Number(a.internalDate) - Number(b.internalDate));
+    if (messages.length === 0) return null;
+    const items = messages.map(toMailItem);
+    const latest = items[items.length - 1];
+    const me = userEmail.toLowerCase();
+    const lastFromOthers = [...items].reverse().find((m) => m.fromEmail.toLowerCase() !== me);
+    const sender = lastFromOthers ?? latest;
+
+    return {
+        ...latest,
+        from: sender.fromEmail.toLowerCase() === me ? "me" : sender.from,
+        fromEmail: sender.fromEmail,
+        // Subject of the conversation is the first message's
+        subject: items[0].subject,
+        isUnread: items.some((m) => m.isUnread),
+        isStarred: items.some((m) => m.isStarred),
+        hasAttachment: items.some((m) => m.hasAttachment),
+        messageCount: items.length,
     };
 }
 
@@ -293,6 +327,43 @@ export async function getMailItems(accessToken: string, ids: string[]): Promise<
         }
     });
     return items.filter((m): m is MailItem => m !== null);
+}
+
+export async function listThreadIds(
+    accessToken: string,
+    options: { q: string; includeSpamTrash: boolean; pageToken?: string; maxResults: number },
+): Promise<{ ids: string[]; nextPageToken: string | null }> {
+    const params = new URLSearchParams({ maxResults: String(options.maxResults) });
+    if (options.q) params.set("q", options.q);
+    if (options.includeSpamTrash) params.set("includeSpamTrash", "true");
+    if (options.pageToken) params.set("pageToken", options.pageToken);
+
+    const data = await gmailFetch<{ threads?: { id: string }[]; nextPageToken?: string }>(accessToken, `threads?${params}`);
+    return { ids: (data.threads ?? []).map((t) => t.id), nextPageToken: data.nextPageToken ?? null };
+}
+
+/** Conversation rows for thread ids, skipping threads that no longer exist. */
+export async function getThreadItems(accessToken: string, threadIds: string[], userEmail: string): Promise<MailItem[]> {
+    const params = new URLSearchParams({ format: "metadata" });
+    for (const h of LIST_HEADERS) params.append("metadataHeaders", h);
+
+    const items = await mapLimit(threadIds, CONCURRENCY, async (id) => {
+        try {
+            return toThreadItem(await gmailFetch<GmailThread>(accessToken, `threads/${encodeURIComponent(id)}?${params}`), userEmail);
+        } catch (error) {
+            if (error instanceof GmailError && error.status === 404) return null;
+            throw error;
+        }
+    });
+    return items.filter((m): m is MailItem => m !== null);
+}
+
+/** A whole conversation with bodies, oldest message first. */
+export async function getThread(accessToken: string, threadId: string): Promise<MailMessage[]> {
+    const thread = await gmailFetch<GmailThread>(accessToken, `threads/${encodeURIComponent(threadId)}?format=full`);
+    return (thread.messages ?? [])
+        .map(toMailMessage)
+        .sort((a, b) => a.timestamp - b.timestamp);
 }
 
 export async function getMailMessage(accessToken: string, id: string): Promise<MailMessage> {
