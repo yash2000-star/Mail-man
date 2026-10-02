@@ -200,6 +200,7 @@ export default function Home() {
             snippet: msg.snippet,
             subject: getHeader(msg.payload.headers, "Subject"),
             from: getHeader(msg.payload.headers, "From").split("<")[0].trim(),
+            fromEmail: getHeader(msg.payload.headers, "From").match(/<([^<>]+)>/)?.[1] || getHeader(msg.payload.headers, "From").trim(),
             date: getHeader(msg.payload.headers, "Date"),
             body: getEmailBody(msg.payload),
             isUnread: msg.labelIds?.includes("UNREAD") || false,

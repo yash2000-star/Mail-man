@@ -1,5 +1,22 @@
 import { NextResponse } from "next/server";
 
+const HEADER_BREAK = /[\r\n]/;
+
+// Accepts "user@example.com" or "Display Name <user@example.com>".
+const ADDRESS = /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/;
+function isValidRecipient(recipient: string) {
+  const match = recipient.match(/^(.*)<([^<>]+)>$/);
+  if (match) return ADDRESS.test(match[2].trim()) && !/[<>]/.test(match[1]);
+  return ADDRESS.test(recipient);
+}
+
+// RFC 2047 encoded-word so non-ASCII subjects survive transport.
+function encodeHeader(value: string) {
+  return /^[\x20-\x7e]*$/.test(value)
+    ? value
+    : `=?UTF-8?B?${Buffer.from(value, "utf-8").toString("base64")}?=`;
+}
+
 export async function POST(req: Request) {
   try {
     const { to, subject, message } = await req.json();
@@ -9,15 +26,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // MIME Email String
+    if (typeof to !== "string" || typeof subject !== "string" || typeof message !== "string") {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    }
+
+    // Header values must be a single line: a CR/LF here would let the caller
+    // inject extra headers (e.g. Bcc:) into the outgoing message.
+    if (HEADER_BREAK.test(to) || HEADER_BREAK.test(subject)) {
+      return NextResponse.json({ error: "Invalid recipient or subject" }, { status: 400 });
+    }
+
+    const recipients = to.split(",").map((r) => r.trim()).filter(Boolean);
+    if (recipients.length === 0 || !recipients.every(isValidRecipient)) {
+      return NextResponse.json({ error: "Invalid recipient address" }, { status: 400 });
+    }
+
+    // MIME Email String (RFC 5322 uses CRLF line endings)
     const mimeEmail = [
-      "Content-Type: text/plain; charset=\"UTF-8\"\n",
-      "MIME-Version: 1.0\n",
-      "Content-Transfer-Encoding: 7bit\n",
-      `To: ${to}\n`,
-      `Subject: ${subject}\n\n`,
-      message
-    ].join("");
+      `To: ${recipients.join(", ")}`,
+      `Subject: ${encodeHeader(subject)}`,
+      "MIME-Version: 1.0",
+      'Content-Type: text/plain; charset="UTF-8"',
+      "Content-Transfer-Encoding: base64",
+      "",
+      Buffer.from(message, "utf-8").toString("base64").replace(/.{76}/g, "$&\r\n"),
+    ].join("\r\n");
 
     // (Google's requirement)
     const encodedMail = Buffer.from(mimeEmail)

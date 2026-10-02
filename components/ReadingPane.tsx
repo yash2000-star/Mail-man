@@ -7,6 +7,7 @@ import {
   Trash2, MoreHorizontal, Sparkles, ThumbsUp, ThumbsDown, ChevronDown, RefreshCw,
   ListTodo, AlertCircle, Mail, Maximize2, Filter, Printer, Plus, Check
 } from "lucide-react";
+import EmailBodyFrame from "./EmailBodyFrame";
 
 interface ReadingPaneProps {
   selectedEmail: any | null;
@@ -60,7 +61,7 @@ export default function ReadingPane({
           Authorization: `Bearer ${(session as any).accessToken}`,
         },
         body: JSON.stringify({
-          to: selectedEmail.from,
+          to: selectedEmail.fromEmail || selectedEmail.from,
           subject: selectedEmail.subject?.startsWith("Re:")
             ? selectedEmail.subject
             : `Re: ${selectedEmail.subject}`,
@@ -369,10 +370,9 @@ export default function ReadingPane({
 
             {/* Actual Email Body (Full Width Edge-to-Edge) */}
             <div className="w-full bg-white min-h-full py-12 px-8 md:px-12">
-              <div
-                dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
-                className="email-content-wrapper text-zinc-900 text-[16px] leading-[1.8] font-sans max-w-4xl mx-auto break-words selection:bg-amber-100 overflow-x-auto max-w-full"
-              />
+              <div className="email-content-wrapper max-w-4xl mx-auto overflow-x-auto max-w-full">
+                <EmailBodyFrame html={selectedEmail.body || ""} title={selectedEmail.subject || "Email content"} />
+              </div>
             </div>
 
             {/* Bottom Action Pills (Centered) */}
