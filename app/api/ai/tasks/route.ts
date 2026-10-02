@@ -151,7 +151,7 @@ export async function POST(req: Request) {
       }
 
       return NextResponse.json([...combinedResults, ...parsedData]);
-    } catch (parseError) {
+    } catch {
       console.error("Batch Task JSON Parse Error:", text);
       return NextResponse.json(combinedResults); // Fail gracefully so the app doesn't crash on this batch, returning cached stuff
     }

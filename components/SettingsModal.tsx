@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { X, Key, Check, ShieldAlert } from "lucide-react";
 
 interface SettingsModalProps {
@@ -11,18 +11,12 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ isOpen, onClose, initialKeys, onSaveDb }: SettingsModalProps) {
-  const [geminiKey, setGeminiKey] = useState("");
-  const [openAiKey, setOpenAiKey] = useState("");
-  const [anthropicKey, setAnthropicKey] = useState("");
+  // The parent mounts this modal only while it is open, so the fields start
+  // from the saved keys each time it opens.
+  const [geminiKey, setGeminiKey] = useState(initialKeys?.gemini || "");
+  const [openAiKey, setOpenAiKey] = useState(initialKeys?.openai || "");
+  const [anthropicKey, setAnthropicKey] = useState(initialKeys?.anthropic || "");
   const [isSaved, setIsSaved] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) {
-      setGeminiKey(initialKeys?.gemini || "");
-      setOpenAiKey(initialKeys?.openai || "");
-      setAnthropicKey(initialKeys?.anthropic || "");
-    }
-  }, [isOpen, initialKeys]);
 
   const handleSave = async () => {
     await onSaveDb({

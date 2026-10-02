@@ -10,25 +10,11 @@ import LandingPage from "@/components/LandingPage";
 import SmartLabelModal from "@/components/SmartLabelModal";
 import ToDoDashboard from "@/components/ToDoDashboard";
 
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import {
-  Sparkles,
-  Search,
-  Shield,
-  Bot,
-  Check,
-  Key,
-  Settings,
-  Mail,
-  CheckCircle2,
-  XCircle,
-  ArrowRight,
-  Menu,
-  X,
-  ListTodo,
-  Pencil,
+  Bot, Mail, Menu, ListTodo, Pencil
 } from "lucide-react";
 
 export default function Home() {
@@ -91,7 +77,7 @@ export default function Home() {
       const base64 = data.replace(/-/g, "+").replace(/_/g, "/");
       // gibberish into text
       return decodeURIComponent(escape(window.atob(base64)));
-    } catch (e) {
+    } catch {
       return "Error decoding email.";
     }
   };
@@ -107,13 +93,13 @@ export default function Home() {
 
     // Complex email
     if (payload.parts && payload.parts.length > 0) {
-      let htmlPart = payload.parts.find(
+      const htmlPart = payload.parts.find(
         (part: any) => part.mimeType === "text/html",
       );
       if (htmlPart?.body?.data) return decodeBase64(htmlPart.body.data);
 
       // No html
-      let textPart = payload.parts.find(
+      const textPart = payload.parts.find(
         (parts: any) => parts.mimeType === "text/plain",
       );
       if (textPart?.body?.data) return decodeBase64(textPart.body.data);
@@ -145,12 +131,6 @@ export default function Home() {
       if (mailboxToFetch === "Draft") query = "is:draft";
       if (mailboxToFetch === "Spam") query = "in:spam";
       if (mailboxToFetch === "Trash") query = "in:trash";
-      if (mailboxToFetch === "Conversation History")
-        query = 'label:"Conversation History"';
-      if (mailboxToFetch === "GMass Auto Followup")
-        query = 'label:"GMass Auto Followup"';
-      if (mailboxToFetch === "GMass Reports") query = 'label:"GMass Reports"';
-      if (mailboxToFetch === "GMass Scheduled") query = 'label:"GMass Scheduled"';
 
       // GLOBAL SEARCH ENGINe
       if (searchString.trim() !== "") {
@@ -220,7 +200,7 @@ export default function Home() {
         // Immediately cache the fetched inbox emails so the NEXT time the user logs in, it loads instantly!
         try {
           if (mailboxToFetch === "Inbox") {
-            localStorage.setItem("ezee_mail_cache_Inbox", JSON.stringify(cleanEmails));
+            localStorage.setItem("mailman_cache_inbox", JSON.stringify(cleanEmails));
           }
         } catch (e) {
           console.error("Could not cache to local storage", e);
@@ -397,115 +377,6 @@ export default function Home() {
       console.error("Failed to extract batch tasks:", error);
     }
   };
-
-  const classifyEmail = async (id: string, snippet: string) => {
-    // Keep this for individual refreshes if needed, but the main loop is gone.
-    if (!geminiApiKey) return;
-    try {
-      const response = await fetch("/api/classify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          emails: [{ id, snippet, sender: "Unknown" }],
-          apiKey: geminiApiKey
-        }),
-      });
-      const results = await response.json();
-      const result = results?.[0];
-
-      setEmails((prevEmails) => {
-        return prevEmails.map((email) =>
-          email.id === id
-            ? {
-              ...email,
-              category: result.category,
-              summary: result.summary,
-              requires_reply: result.requires_reply,
-              draft_reply: result.draft_reply,
-            }
-            : email,
-        );
-      });
-
-      // If the currently selected email just got an AI update, refresh it in the reading pane using updater!
-      setSelectedEmail((prevSelected: any) => {
-        if (prevSelected?.id === id) {
-          return {
-            ...prevSelected,
-            category: result.category,
-            summary: result.summary,
-            requires_reply: result.requires_reply,
-            draft_reply: result.draft_reply,
-          };
-        }
-        return prevSelected;
-      });
-    } catch (error) {
-      console.error("Failed to classify:", error);
-    }
-  };
-
-  const extractTasksAndLabels = async (email: any) => {
-    const apiKey = localStorage.getItem("gemini_api_key");
-    if (!apiKey) return;
-
-    try {
-      const senderName = email.from.split("<")[0].replace(/"/g, "").trim();
-
-      const response = await fetch("/api/ai/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          emails: [{
-            id: email.id,
-            sender: senderName,
-            content: `Subject: ${email.subject}\n\n${email.body.substring(0, 1000)}`
-          }],
-          apiKey: apiKey,
-          customLabels: customLabels
-        }),
-      });
-
-      if (!response.ok) {
-        console.error(`Tasks API failed with status: ${response.status}`);
-        return; // Stop here before it tries to parse HTML!
-      }
-
-      const results = await response.json();
-      const result = results?.[0];
-
-      if (!result) return;
-
-      // 1. Sync Global Tasks directly from MongoDB to capture the real Database IDs!
-      try {
-        const userRes = await fetch('/api/user');
-        if (userRes.ok) {
-          const userData = await userRes.json();
-          if (userData.globalTasks) setGlobalTasks(userData.globalTasks);
-        }
-      } catch (e) {
-        console.error("Failed to sync DB tasks", e);
-      }
-
-      // 2. Add labels quietly to the email
-      if (result.appliedLabels && result.appliedLabels.length > 0) {
-        setEmails((prevEmails) =>
-          prevEmails.map((e) => e.id === email.id ? { ...e, appliedLabels: result.appliedLabels } : e)
-        );
-
-        setSelectedEmail((prevSelected: any) => {
-          if (prevSelected?.id === email.id) {
-            return { ...prevSelected, appliedLabels: result.appliedLabels };
-          }
-          return prevSelected;
-        });
-      }
-
-    } catch (error) {
-      console.error("Failed to extract tasks:", error);
-    }
-  };
-
 
   // Quick action
   const handleEmailAction = async (id: string, action: string) => {
@@ -753,7 +624,7 @@ export default function Home() {
         setIsCheckingKey(false);
 
         // 2. Load the super-fast UI cached emails
-        const cached = localStorage.getItem("ezee_mail_cache_Inbox");
+        const cached = localStorage.getItem("mailman_cache_inbox");
         if (cached) {
           try {
             setEmails(JSON.parse(cached));
@@ -879,6 +750,7 @@ export default function Home() {
         </div>
 
         {/* The Settings Modal */}
+        {isSettingsOpen && (
         <SettingsModal
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
@@ -898,6 +770,7 @@ export default function Home() {
             }
           }}
         />
+        )}
 
         {isComposeOpen && (
           <ComposeModal
@@ -928,11 +801,11 @@ export default function Home() {
 
               if (newLabel.applyRetroactively && geminiApiKey && emails.length > 0) {
                 const emailsToProcess = emails.slice(0, 50);
-                alert(`Success! "${newLabel.name}" saved. Filo is now retroactively scanning your last 50 emails...`);
+                alert(`Success! "${newLabel.name}" saved. Mail-man is now retroactively scanning your last 50 emails...`);
                 // Use the existing batch processor to scan the slice
                 extractTasksAndLabelsBatch(emailsToProcess, geminiApiKey);
               } else {
-                alert(`Success! "${newLabel.name}" safely stored. Filo will now automatically scan new incoming emails.`);
+                alert(`Success! "${newLabel.name}" safely stored. Mail-man will now automatically scan new incoming emails.`);
               }
             } catch (e) {
               console.error("Failed to sync new label", e);

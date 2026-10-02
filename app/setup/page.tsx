@@ -21,7 +21,6 @@ export default function SetupPage() {
     const [phase, setPhase] = useState<"input" | "loading" | "done">("input");
     const [error, setError] = useState("");
     const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
-    const [isSaved, setIsSaved] = useState(false);
     const cycleRef = useRef<NodeJS.Timeout | null>(null);
     const msgIndexRef = useRef(0);
 
@@ -159,13 +158,12 @@ export default function SetupPage() {
 
             // Step 4: Cache to localStorage so dashboard loads instantly
             try {
-                localStorage.setItem("ezee_mail_cache_Inbox", JSON.stringify(preloadedEmails));
+                localStorage.setItem("mailman_cache_inbox", JSON.stringify(preloadedEmails));
             } catch { }
 
             // Step 5: Show saved ✓ then redirect
             if (cycleRef.current) clearInterval(cycleRef.current);
             setPhase("done");
-            setIsSaved(true);
 
             setTimeout(() => {
                 router.replace("/");

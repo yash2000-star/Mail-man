@@ -1,28 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import dynamic from "next/dynamic";
 import "react-quill-new/dist/quill.snow.css";
 
 import {
-  X,
-  Minus,
-  Maximize2,
-  Paperclip,
-  Link2,
-  ImageIcon,
-  Smile,
-  MoreVertical,
-  Trash2,
-  Bold,
-  Italic,
-  Underline,
-  AlignLeft,
-  Send,
-  ChevronDown,
-  Sparkles,
-  Globe
+  X, Minus, Maximize2, Paperclip, ImageIcon, Trash2, Bold, Italic, Underline, AlignLeft, Send,
+  ChevronDown, Sparkles, Globe
 } from "lucide-react";
 
 // import Quill dynamically so Next.js doesn't crash on the server

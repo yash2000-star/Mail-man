@@ -3,23 +3,12 @@
 import { signIn } from "next-auth/react";
 import { useState, useEffect, useRef } from "react";
 import {
-  motion,
-  AnimatePresence,
-  useScroll,
-  useTransform,
-  useMotionValue,
-  useMotionTemplate,
+  motion, AnimatePresence, useScroll, useTransform
 } from "framer-motion";
 import {
-  ArrowRight, Check, Bot, Shield, Sparkles, Mail,
-  Search, Tag, BarChart3, Clock, ChevronRight,
-  Star, Menu, X, Brain, Inbox, Zap, Plus,
+  ArrowRight, Check, Sparkles, Mail, ChevronRight, Menu, X, Plus
 } from "lucide-react";
-import { TextGenerateEffect } from "./ui/text-generate-effect";
-import { ContainerScroll } from "./ui/container-scroll-animation";
-import { PlaceholdersAndVanishInput } from "./ui/placeholders-and-vanish-input";
 import { HoverEffect } from "./ui/card-hover-effect";
-import { MovingBorder } from "./ui/moving-border";
 import { TrainYourAIAnimation, MultiModelHubAnimation, TaskExtractionAnimation, AddYourBrandAnimation } from "./ui/bento-animations";
 import { StickyScrollUseCases } from "./ui/sticky-scroll-use-cases";
 import { Plus_Jakarta_Sans, Playfair_Display } from "next/font/google";
@@ -160,7 +149,7 @@ function HorizontalFeatures() {
               <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-4">Core Capabilities</p>
               <h2 className={`${serif.className} text-4xl md:text-5xl font-normal tracking-[0.02em] text-white leading-[1.15]`}>
                 Everything you need.<br />
-                <span className="text-zinc-500 italic tracking-[0.02em]">Nothing you don't.</span>
+                <span className="text-zinc-500 italic tracking-[0.02em]">Nothing you don&apos;t.</span>
               </h2>
             </div>
             <p className="hidden md:block text-zinc-600 text-xs font-medium max-w-[200px] text-right leading-relaxed">
@@ -172,7 +161,7 @@ function HorizontalFeatures() {
         {/* Card track */}
         <div className="max-w-7xl mx-auto w-full px-8 md:px-14 overflow-visible">
           <motion.div style={{ x }} className="flex gap-6 will-change-transform">
-            {FEAT_CARDS.map((card, i) => (
+            {FEAT_CARDS.map((card) => (
               <div
                 key={card.num}
                 className={`shrink-0 w-[300px] md:w-[340px] border ${BORDER} bg-zinc-950 p-8 flex flex-col justify-between`}
@@ -435,21 +424,21 @@ export default function LandingPage() {
                       <div className="p-8 flex flex-col h-full">
                         <p className="text-[10px] font-black uppercase tracking-widest text-zinc-700 mb-3">03 — AI Chat</p>
                         <h3 className="text-2xl font-light tracking-tight text-white mb-3">Chat with Inbox</h3>
-                        <p className="text-zinc-500 text-sm leading-relaxed">Ask plain-English questions about your email threads. "What did Sarah say about the proposal?"</p>
+                        <p className="text-zinc-500 text-sm leading-relaxed">Ask plain-English questions about your email threads. &ldquo;What did Sarah say about the proposal?&rdquo;</p>
                         <div className="relative mt-8 h-20 overflow-hidden flex-1">
                           <motion.div
                             initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
                             transition={{ duration: 0.5, delay: 0.5, repeat: Infinity, repeatType: "loop", repeatDelay: 4.5 }}
                             className="absolute top-0 left-0 right-4 bg-zinc-800 border border-zinc-700/60 p-3 text-sm text-zinc-300"
                           >
-                            "What did Sarah say about the proposal?"
+                            &ldquo;What did Sarah say about the proposal?&rdquo;
                           </motion.div>
                           <motion.div
                             initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
                             transition={{ duration: 0.5, delay: 2.0, repeat: Infinity, repeatType: "loop", repeatDelay: 3.0 }}
                             className="absolute top-8 right-0 left-4 bg-amber-500/10 border border-amber-500/20 p-3 text-sm text-amber-300"
                           >
-                            "Found 3 messages. Want a summary?"
+                            &ldquo;Found 3 messages. Want a summary?&rdquo;
                           </motion.div>
                         </div>
                       </div>
@@ -553,7 +542,7 @@ export default function LandingPage() {
                 <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-8">Managed Cloud</p>
                 <p className="text-3xl font-light tracking-tighter text-zinc-500 mt-4 mb-1">Coming Soon</p>
                 <p className="text-xs text-zinc-700 mb-8">/ pricing TBD</p>
-                <p className="text-zinc-600 text-sm mb-10 leading-relaxed">For users who don't want to manage their own API keys.</p>
+                <p className="text-zinc-600 text-sm mb-10 leading-relaxed">For users who don&apos;t want to manage their own API keys.</p>
                 <ul className="space-y-4 mb-10">
                   {["One flat monthly fee", "Zero API key setup", "Managed model access", "Enterprise SLA support"].map(f => (
                     <li key={f} className="flex items-center gap-3 text-sm text-zinc-600">

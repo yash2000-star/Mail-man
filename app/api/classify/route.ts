@@ -158,7 +158,7 @@ export async function POST(req: Request) {
       }
 
       return NextResponse.json([...combinedResults, ...parsedData]);
-    } catch (parseError) {
+    } catch {
       console.error("Batch JSON Parse Error:", text);
       return NextResponse.json({ error: "Failed to parse AI response. It may have been cut off." }, { status: 500 });
     }

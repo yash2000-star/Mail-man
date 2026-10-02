@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 // Added 'Check' to the imports!
-import { Clock, Info, ThumbsDown, Trash2, Sparkles, AlertCircle, Check, ListFilter } from "lucide-react";
+import { Clock, Info, ThumbsDown, Trash2, Sparkles, Check, ListFilter } from "lucide-react";
 
 // 1. Updated interface to accept our 4 new target actions
 interface ToDoDashboardProps {

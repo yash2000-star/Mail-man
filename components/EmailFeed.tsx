@@ -2,21 +2,8 @@
 
 import { useState } from "react";
 import {
-  Search,
-  RefreshCw,
-  SlidersHorizontal,
-  ListFilter,
-  Sparkles,
-  Archive,
-  Trash2,
-  Mail,
-  Star,
-  Coffee,
-  MailOpen,
-  PanelLeft,
-  Tag,
-  PanelLeftClose,
-  PanelLeftOpen
+  Search, RefreshCw, SlidersHorizontal, ListFilter, Sparkles, Archive, Trash2, Mail, Star, Coffee,
+  MailOpen, Tag, PanelLeftClose, PanelLeftOpen
 } from "lucide-react";
 
 interface EmailFeedProps {
@@ -42,6 +29,15 @@ const LABEL_COLORS: Record<string, string> = {
   indigo: "bg-indigo-500/20 text-indigo-400 border-indigo-500/20",
   purple: "bg-purple-500/20 text-purple-400 border-purple-500/20",
 };
+
+function Badge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full text-[9px] font-black ml-1.5 self-center">
+      {count}
+    </span>
+  );
+}
 
 export default function EmailFeed({
   emails,
@@ -156,22 +152,14 @@ export default function EmailFeed({
 
   // Helper to calculate unread counts dynamically
   const getUnreadCount = (tabName: string) => {
-    if (tabName === "All") return emails.filter(e => !e.isRead).length;
+    if (tabName === "All") return emails.filter(e => e.isUnread).length;
     if (tabName === "Important" || tabName === "Updates" || tabName === "Promotions") {
-      return emails.filter(e => !e.isRead && e.category?.toLowerCase() === tabName.toLowerCase()).length;
+      return emails.filter(e => e.isUnread && e.category?.toLowerCase() === tabName.toLowerCase()).length;
     }
     // For custom labels
-    return emails.filter(e => !e.isRead && e.appliedLabels && e.appliedLabels.includes(tabName)).length;
+    return emails.filter(e => e.isUnread && e.appliedLabels && e.appliedLabels.includes(tabName)).length;
   };
 
-  const Badge = ({ count }: { count: number }) => {
-    if (count <= 0) return null;
-    return (
-      <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full text-[9px] font-black ml-1.5 self-center">
-        {count}
-      </span>
-    );
-  };
 
   return (
     <section
