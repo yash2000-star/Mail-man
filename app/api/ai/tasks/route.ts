@@ -7,6 +7,7 @@ import { bodyText, getGmailAuth, getMailMessage, GmailError } from "@/lib/gmail"
 import { getUserAi } from "@/lib/user-ai";
 import { generateText, parseJsonArray } from "@/lib/ai";
 import { aiErrorResponse, gmailAuthRequired, noAiKey } from "@/lib/api-response";
+import { cleanDueDate } from "@/lib/tasks";
 
 export const maxDuration = 60;
 
@@ -16,8 +17,8 @@ const MAX_CONTENT_CHARS = 2000;
 interface ExtractedTask {
   title: string;
   date?: string;
+  dueDate?: string;
   isUrgent?: boolean;
-  isPastDue?: boolean;
 }
 
 interface TaskResult {
@@ -80,11 +81,11 @@ export async function POST(req: NextRequest) {
 ${emailList}
 
 For each email:
-1. tasks: action items or requests for the recipient. Note any deadline, whether it is urgent ("ASAP", "by tonight"), and whether it is already past due given today's date.
+1. tasks: action items or requests for the recipient. For each, give the deadline wording from the email ("date"), the exact due date as YYYY-MM-DD if one can be worked out from the email and today's date ("dueDate", otherwise ""), and whether it is urgent ("ASAP", "by tonight").
 2. appliedLabels: names of the labels below whose rule matches the email. ${labels.length > 0 ? `Labels: ${JSON.stringify(labels)}` : "There are no labels, so always return []."}
 
 Respond with only a JSON array of exactly ${toProcess.length} objects, one per email, in this format:
-[{"id": "the exact EMAIL_ID", "tasks": [{"title": "...", "date": "extracted date or 'No due date'", "isUrgent": true, "isPastDue": false}], "appliedLabels": ["Label name"]}]`;
+[{"id": "the exact EMAIL_ID", "tasks": [{"title": "...", "date": "deadline wording or ''", "dueDate": "2026-10-09 or ''", "isUrgent": true}], "appliedLabels": ["Label name"]}]`;
 
     const text = await generateText({
       ...ai,
@@ -111,10 +112,12 @@ Respond with only a JSON array of exactly ${toProcess.length} objects, one per e
         id: randomUUID(),
         emailId: r.id,
         title: t.title.slice(0, 1000),
-        date: String(t.date ?? "No due date").slice(0, 100),
+        date: String(t.date ?? "").slice(0, 100),
+        dueDate: cleanDueDate(t.dueDate),
         isUrgent: Boolean(t.isUrgent),
-        isPastDue: Boolean(t.isPastDue),
         status: "active",
+        createdAt: new Date().toISOString(),
+        completedAt: "",
       })));
 
     if (results.length > 0) {

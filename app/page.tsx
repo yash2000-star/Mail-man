@@ -8,13 +8,14 @@ import ComposeModal from "@/components/ComposeModal";
 import SettingsModal from "@/components/SettingsModal";
 import LandingPage from "@/components/LandingPage";
 import SmartLabelModal from "@/components/SmartLabelModal";
-import ToDoDashboard from "@/components/ToDoDashboard";
+import ToDoDashboard, { type TaskChanges } from "@/components/ToDoDashboard";
 
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { AI_PROVIDERS, AiProvider, SavedKeys } from "@/lib/ai-providers";
 import type { LabelColor, SmartLabel } from "@/lib/labels";
+import type { Task } from "@/lib/tasks";
 import { isFolder, type MailAnalysis, type MailItem, type MailMessage, type MailPage } from "@/lib/mail-types";
 import {
   Bot, Mail, Menu, ListTodo, Pencil
@@ -73,7 +74,7 @@ export default function Home() {
   // Smart Label modal: closed (null), creating ("new"), or editing a label
   const [labelModal, setLabelModal] = useState<"new" | SmartLabel | null>(null);
   const [needsReplyCount, setNeedsReplyCount] = useState(0);
-  const [globalTasks, setGlobalTasks] = useState<any[]>([]);
+  const [globalTasks, setGlobalTasks] = useState<Task[]>([]);
   const [customLabels, setCustomLabels] = useState<SmartLabel[]>([]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -544,42 +545,46 @@ export default function Home() {
     }
   };
 
-  // --- TO-DO DASHBOARD HANDLERS ---
-  const handleToggleTask = async (taskId: string) => {
-    const updatedTasks = globalTasks.map((task) =>
-      task.id === taskId
-        ? { ...task, status: task.status === "active" ? "done" : "active" }
-        : task
-    );
-    setGlobalTasks(updatedTasks);
+  // --- TO-DO DASHBOARD ---
 
+  /** Calls the tasks API and syncs the list from its response. Returns an error message or null. */
+  const tasksRequest = async (method: string, body?: object, query = ""): Promise<string | null> => {
     try {
-      await fetch('/api/user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ globalTasks: updatedTasks }),
+      const response = await fetch(`/api/tasks${query}`, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined,
       });
-    } catch (e) {
-      console.error("Failed to sync task toggle", e);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return data.error || "Something went wrong. Please try again.";
+      setGlobalTasks(data.tasks);
+      return null;
+    } catch {
+      return "Could not reach the server. Check your connection.";
     }
   };
 
-  const handleDeleteTask = async (taskId: string) => {
-    const updatedTasks = globalTasks.filter((task) => task.id !== taskId);
-    setGlobalTasks(updatedTasks);
+  const handleAddTask = (task: { title: string; dueDate: string; isUrgent: boolean }) => tasksRequest("POST", task);
 
-    try {
-      await fetch('/api/user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ globalTasks: updatedTasks }),
-      });
-    } catch (e) {
-      console.error("Failed to sync task deletion", e);
+  const handleUpdateTask = async (id: string, changes: TaskChanges) => {
+    // Show the change immediately; the server's list replaces it when it answers
+    setGlobalTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...changes } : t)));
+    const error = await tasksRequest("PATCH", { id, ...changes });
+    if (error) {
+      alert(error);
+      tasksRequest("GET");
     }
   };
 
-  /** Opens the email a task came from, even if it isn't in the current list. */
+  const handleDeleteTask = async (id: string) => {
+    setGlobalTasks((prev) => prev.filter((t) => t.id !== id));
+    const error = await tasksRequest("DELETE", undefined, `?id=${encodeURIComponent(id)}`);
+    if (error) {
+      alert(error);
+      tasksRequest("GET");
+    }
+  };
+
   const handleViewEmail = async (emailId: string) => {
     if (activeMailbox === "To-do") openMailbox("Inbox");
     const inList = emails.find((e) => e.id === emailId);
@@ -806,7 +811,8 @@ export default function Home() {
           {activeMailbox === "To-do" ? (
             <ToDoDashboard
               tasks={globalTasks}
-              onToggleTask={handleToggleTask}
+              onAddTask={handleAddTask}
+              onUpdateTask={handleUpdateTask}
               onDeleteTask={handleDeleteTask}
               onViewEmail={handleViewEmail}
               isScanning={isScanningTasks}

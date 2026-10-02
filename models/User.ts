@@ -38,14 +38,17 @@ const UserSchema = new mongoose.Schema({
         id: String,
         emailId: String,
         title: String,
+        // Exact due date (YYYY-MM-DD) when known; "date" keeps the email's wording
+        dueDate: { type: String, default: "" },
         date: String,
         isUrgent: Boolean,
-        isPastDue: Boolean,
         status: {
             type: String,
             default: "active",
             enum: ["active", "done"]
-        }
+        },
+        createdAt: { type: String, default: "" },
+        completedAt: { type: String, default: "" },
     }]
 }, { timestamps: true });
 

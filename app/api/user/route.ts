@@ -7,10 +7,10 @@ import { encryptApiKey } from '@/lib/encryption';
 import { AI_PROVIDERS, AiProvider, isAiProvider } from '@/lib/ai';
 import { KEY_FIELDS, keyHint, providersWithKeys } from '@/lib/user-ai';
 import { unauthorized } from '@/lib/api-response';
+import { normalizeTask } from '@/lib/tasks';
 
 const MAX_KEY_LENGTH = 512;
 const MAX_LABELS = 100;
-const MAX_TASKS = 2000;
 
 const str = (value: unknown, max: number) =>
     typeof value === 'string' ? value.slice(0, max) : undefined;
@@ -30,23 +30,6 @@ function sanitizeLabels(input: unknown) {
     return labels;
 }
 
-function sanitizeTasks(input: unknown) {
-    if (!Array.isArray(input) || input.length > MAX_TASKS) return null;
-    const tasks = [];
-    for (const task of input) {
-        if (!task || typeof task !== 'object') return null;
-        tasks.push({
-            id: str(task.id, 100) ?? '',
-            emailId: str(task.emailId, 100) ?? '',
-            title: str(task.title, 1000) ?? '',
-            date: str(task.date, 100) ?? '',
-            isUrgent: Boolean(task.isUrgent),
-            isPastDue: Boolean(task.isPastDue),
-            status: task.status === 'done' ? 'done' : 'active',
-        });
-    }
-    return tasks;
-}
 
 interface UserDoc {
     email: string;
@@ -76,7 +59,8 @@ function toClient(user: UserDoc, needsReplyCount: number) {
         aiProvider,
         savedKeys,
         customLabels: user.customLabels ?? [],
-        globalTasks: user.globalTasks ?? [],
+        // Tasks are edited through /api/tasks
+        globalTasks: (user.globalTasks ?? []).map((t) => normalizeTask(t as Record<string, unknown>)),
         needsReplyCount,
     };
 }
@@ -146,12 +130,6 @@ export async function POST(req: Request) {
             const labels = sanitizeLabels(body.customLabels);
             if (!labels) return NextResponse.json({ error: 'Invalid customLabels' }, { status: 400 });
             updateData.customLabels = labels;
-        }
-
-        if (body.globalTasks !== undefined) {
-            const tasks = sanitizeTasks(body.globalTasks);
-            if (!tasks) return NextResponse.json({ error: 'Invalid globalTasks' }, { status: 400 });
-            updateData.globalTasks = tasks;
         }
 
         const user = await User.findOneAndUpdate(
