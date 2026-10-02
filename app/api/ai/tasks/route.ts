@@ -8,6 +8,7 @@ import { getUserAi } from "@/lib/user-ai";
 import { generateText, parseJsonArray } from "@/lib/ai";
 import { aiErrorResponse, gmailAuthRequired, noAiKey } from "@/lib/api-response";
 import { cleanDueDate } from "@/lib/tasks";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
 
@@ -31,6 +32,8 @@ interface TaskResult {
 export async function POST(req: NextRequest) {
   const auth = await getGmailAuth(req);
   if (!auth) return gmailAuthRequired();
+  const limited = await rateLimit(auth.email, "ai");
+  if (limited) return limited;
   const userEmail = auth.email;
 
   try {

@@ -5,6 +5,7 @@ import User from "@/models/User";
 import { getSessionEmail } from "@/lib/auth";
 import { unauthorized } from "@/lib/api-response";
 import { cleanDueDate, cleanTitle, MAX_TASKS, normalizeTask, Task } from "@/lib/tasks";
+import { rateLimit } from "@/lib/rate-limit";
 
 /**
  * The user's to-do list. Each change updates one task in place (no
@@ -34,6 +35,8 @@ export async function GET() {
 export async function POST(req: Request) {
     const email = await getSessionEmail();
     if (!email) return unauthorized();
+    const limited = await rateLimit(email, "writes");
+    if (limited) return limited;
 
     const body = await req.json().catch(() => ({}));
     const title = cleanTitle(body?.title);
@@ -62,6 +65,8 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
     const email = await getSessionEmail();
     if (!email) return unauthorized();
+    const limited = await rateLimit(email, "writes");
+    if (limited) return limited;
 
     const body = await req.json().catch(() => ({}));
     if (typeof body?.id !== "string" || !body.id) return badRequest("Which task?");
@@ -96,6 +101,8 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
     const email = await getSessionEmail();
     if (!email) return unauthorized();
+    const limited = await rateLimit(email, "writes");
+    if (limited) return limited;
 
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return badRequest("Which task?");

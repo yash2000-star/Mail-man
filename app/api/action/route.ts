@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGmailAuth, gmailFetch } from "@/lib/gmail";
 import { gmailAuthRequired, gmailErrorResponse } from "@/lib/api-response";
+import { rateLimit } from "@/lib/rate-limit";
 
 // Each action is a Gmail label change on the message
 const ACTIONS: Record<string, { add?: string[]; remove?: string[] }> = {
@@ -19,6 +20,8 @@ const ACTIONS: Record<string, { add?: string[]; remove?: string[] }> = {
 export async function POST(req: NextRequest) {
     const auth = await getGmailAuth(req);
     if (!auth) return gmailAuthRequired();
+    const limited = await rateLimit(auth.email, "writes");
+    if (limited) return limited;
 
     try {
         // { id, action } changes one message; { threadId, action } the whole conversation

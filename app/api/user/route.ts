@@ -6,9 +6,10 @@ import User from '@/models/User';
 import EmailAnalysis from '@/models/EmailAnalysis';
 import { encryptApiKey } from '@/lib/encryption';
 import { AI_PROVIDERS, AiProvider, isAiProvider } from '@/lib/ai';
-import { KEY_FIELDS, keyHint, providersWithKeys } from '@/lib/user-ai';
+import { KEY_FIELDS, keyHint, providersWithKeys, upgradeStoredKeys } from '@/lib/user-ai';
 import { unauthorized } from '@/lib/api-response';
 import { normalizeTask } from '@/lib/tasks';
+import { rateLimit } from '@/lib/rate-limit';
 
 const MAX_KEY_LENGTH = 512;
 const MAX_LABELS = 100;
@@ -78,6 +79,7 @@ export async function GET() {
             { $setOnInsert: { email } },
             { new: true, upsert: true },
         ).lean<UserDoc>();
+        await upgradeStoredKeys(email, user);
 
         const needsReplyCount = await EmailAnalysis.countDocuments({ userEmail: email, requires_reply: true });
         return NextResponse.json(toClient(user!, needsReplyCount), { status: 200 });
@@ -90,6 +92,8 @@ export async function GET() {
 export async function POST(req: Request) {
     const email = await getSessionEmail();
     if (!email) return unauthorized();
+    const limited = await rateLimit(email, "writes");
+    if (limited) return limited;
 
     try {
         await dbConnect();
@@ -155,6 +159,8 @@ export async function POST(req: Request) {
 export async function DELETE(req: NextRequest) {
     const email = await getSessionEmail();
     if (!email) return unauthorized();
+    const limited = await rateLimit(email, "writes");
+    if (limited) return limited;
 
     try {
         await dbConnect();

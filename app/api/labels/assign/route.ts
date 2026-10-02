@@ -5,11 +5,14 @@ import EmailAnalysis from "@/models/EmailAnalysis";
 import { getSessionEmail } from "@/lib/auth";
 import { unauthorized } from "@/lib/api-response";
 import type { SmartLabel } from "@/lib/labels";
+import { rateLimit } from "@/lib/rate-limit";
 
 /** POST { emailId, name, applied }: add or remove a Smart Label on one email by hand. */
 export async function POST(req: Request) {
     const email = await getSessionEmail();
     if (!email) return unauthorized();
+    const limited = await rateLimit(email, "writes");
+    if (limited) return limited;
 
     const { emailId, name, applied } = (await req.json().catch(() => ({}))) ?? {};
     if (typeof emailId !== "string" || !/^[a-zA-Z0-9]+$/.test(emailId) || typeof name !== "string") {

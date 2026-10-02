@@ -5,6 +5,7 @@ import EmailAnalysis from "@/models/EmailAnalysis";
 import { getSessionEmail } from "@/lib/auth";
 import { unauthorized } from "@/lib/api-response";
 import { MAX_LABELS, SmartLabel, validateLabel } from "@/lib/labels";
+import { rateLimit } from "@/lib/rate-limit";
 
 /**
  * Smart Label management. Every response is the user's full, updated label list.
@@ -28,6 +29,8 @@ const badRequest = (error: string) => NextResponse.json({ error }, { status: 400
 export async function POST(req: Request) {
     const email = await getSessionEmail();
     if (!email) return unauthorized();
+    const limited = await rateLimit(email, "writes");
+    if (limited) return limited;
 
     await dbConnect();
     const labels = await loadLabels(email);
@@ -41,6 +44,8 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
     const email = await getSessionEmail();
     if (!email) return unauthorized();
+    const limited = await rateLimit(email, "writes");
+    if (limited) return limited;
 
     const body = await req.json().catch(() => null);
     const originalName = body?.originalName;
@@ -70,6 +75,8 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
     const email = await getSessionEmail();
     if (!email) return unauthorized();
+    const limited = await rateLimit(email, "writes");
+    if (limited) return limited;
 
     const name = new URL(req.url).searchParams.get("name");
     if (!name) return badRequest("Which label should be deleted?");

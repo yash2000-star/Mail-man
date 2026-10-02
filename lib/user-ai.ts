@@ -1,6 +1,6 @@
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
-import { decryptApiKey } from "@/lib/encryption";
+import { decryptApiKey, encryptApiKey, needsReencryption } from "@/lib/encryption";
 import { AI_PROVIDERS, AiProvider, isAiProvider } from "@/lib/ai";
 
 /** Where each provider's encrypted key lives on the User document. */
@@ -20,6 +20,27 @@ interface StoredKeys {
     geminiApiKey?: string;
     openAiApiKey?: string;
     anthropicApiKey?: string;
+}
+
+/**
+ * Re-saves keys stored in an older format (plain text or AES-CBC) with the
+ * current AES-GCM encryption. Runs whenever a user's keys are read, so
+ * existing users are upgraded without a separate migration. Best effort: a
+ * failure leaves the old value, which still decrypts.
+ */
+export async function upgradeStoredKeys(email: string, user: StoredKeys | null | undefined): Promise<void> {
+    if (!user) return;
+    const update: Record<string, string> = {};
+    for (const field of Object.values(KEY_FIELDS)) {
+        const stored = user[field];
+        if (stored && needsReencryption(stored)) update[field] = encryptApiKey(decryptApiKey(stored));
+    }
+    if (Object.keys(update).length === 0) return;
+    try {
+        await User.updateOne({ email }, { $set: update });
+    } catch (error) {
+        console.error("Key re-encryption failed:", error);
+    }
 }
 
 /** Providers this user has saved a key for, in the app's default order. */
@@ -43,6 +64,7 @@ export async function getUserAi(email: string, requested?: unknown): Promise<Use
 
     const available = providersWithKeys(user);
     if (!user || available.length === 0) return null;
+    await upgradeStoredKeys(email, user);
 
     const provider =
         (isAiProvider(requested) && available.includes(requested) && requested) ||

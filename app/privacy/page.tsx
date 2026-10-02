@@ -38,10 +38,14 @@ export default function PrivacyPage() {
         <ul>
           <li>your account email address;</li>
           <li>
-            your AI API keys, encrypted before they are saved, and which AI provider you chose. Keys are only
+            your AI API keys, encrypted with AES-256-GCM before they are saved, and which AI provider you chose. Keys are only
             used by the server and are never sent back to your browser;
           </li>
           <li>your Smart Label names and descriptions, and your to-do list;</li>
+          <li>
+            short-lived request counters (your email address and how many requests you made), used to limit
+            abuse and deleted automatically within an hour;
+          </li>
           <li>
             AI results for emails it has analysed: the Gmail message ID, a category, a one-line summary, whether
             the email needs a reply, a suggested reply, and the Smart Labels applied. Summaries and suggested

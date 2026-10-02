@@ -13,7 +13,7 @@ An AI-powered Gmail client. Mail-man signs you in with Google, reads your inbox,
 - **Full mail client**: conversations, every Gmail folder, search, paging, drafts with autosave, attachments, reply and forward with the original quoted.
 - **Compose assistant**: rewrite a draft in a chosen tone or language, or write one from a short instruction.
 - **Inbox chat**: ask questions about your recent mail.
-- **Bring your own key, any provider**: every AI feature works with a Google Gemini, OpenAI or Anthropic Claude key. Keys are encrypted (AES-256) in MongoDB and only used server-side; the browser never sees them.
+- **Bring your own key, any provider**: every AI feature works with a Google Gemini, OpenAI or Anthropic Claude key. Keys are encrypted (AES-256-GCM) in MongoDB and only used server-side; the browser never sees them.
 - Archive, trash, spam, star and read/unread actions sync back to Gmail; responsive layout for mobile.
 - **Live demo** at `/demo`: the real app running against an in-browser sample mailbox (`lib/demo`), so nothing reaches Gmail, the database or an AI provider.
 
@@ -106,13 +106,18 @@ While the app is in Google's *Testing* mode, only accounts listed as test users 
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript type-check |
+| `npm test` | Unit tests (Vitest): encryption, rate limiting, MIME building, validation, demo API |
 
-CI runs lint, type-check and build on every pull request and every push to `main`.
+CI runs lint, type-check, tests and build on every pull request and every push to `main`.
 
 ## Security
 
-- Email HTML is rendered in a sandboxed iframe with scripts disabled.
-- AI API keys are encrypted at rest with AES-256, read only on the server, and never returned to the browser.
-- Every AI and settings API route requires a signed-in session.
+- Email HTML is rendered in a sandboxed iframe with scripts disabled, and every page is served with a Content-Security-Policy, HSTS and anti-framing headers (`next.config.ts`).
+- AI API keys are encrypted at rest with AES-256-GCM, read only on the server, and never returned to the browser. Keys saved in the older AES-CBC format are re-encrypted automatically the next time they are read.
+- Every AI and settings API route requires a signed-in session and is rate limited per user (`lib/rate-limit.ts`, counters in MongoDB so limits hold across serverless instances).
 - The settings API only accepts a fixed set of fields, and outgoing mail headers are validated.
 - Settings > **Delete my data** removes everything Mail-man stores for a user and revokes its Google access.
+
+## License
+
+[MIT](LICENSE)

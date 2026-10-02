@@ -5,6 +5,7 @@ import { parseComposeRequest } from "@/lib/compose-request";
 import { gmailAuthRequired, gmailErrorResponse } from "@/lib/api-response";
 import dbConnect from "@/lib/mongodb";
 import EmailAnalysis from "@/models/EmailAnalysis";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
 
@@ -16,6 +17,8 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   const auth = await getGmailAuth(req);
   if (!auth) return gmailAuthRequired();
+  const limited = await rateLimit(auth.email, "send");
+  if (limited) return limited;
 
   try {
     const { message, threadId, draftId, replyToEmailId, keepDraftAttachments } = await parseComposeRequest(req, true);
