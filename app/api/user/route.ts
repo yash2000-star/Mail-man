@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSessionEmail } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
+import EmailAnalysis from '@/models/EmailAnalysis';
 import { encryptApiKey } from '@/lib/encryption';
 import { AI_PROVIDERS, AiProvider, isAiProvider } from '@/lib/ai';
 import { KEY_FIELDS, keyHint, providersWithKeys } from '@/lib/user-ai';
@@ -61,7 +62,7 @@ interface UserDoc {
  * What the browser gets back. API keys never leave the server: the client
  * only learns which providers have a key saved and its last 4 characters.
  */
-function toClient(user: UserDoc) {
+function toClient(user: UserDoc, needsReplyCount: number) {
     const available = providersWithKeys(user);
     const savedKeys = Object.fromEntries(
         AI_PROVIDERS.map((p) => [p, { saved: available.includes(p), hint: keyHint(user[KEY_FIELDS[p]]) }]),
@@ -76,6 +77,7 @@ function toClient(user: UserDoc) {
         savedKeys,
         customLabels: user.customLabels ?? [],
         globalTasks: user.globalTasks ?? [],
+        needsReplyCount,
     };
 }
 
@@ -92,7 +94,8 @@ export async function GET() {
             { new: true, upsert: true },
         ).lean<UserDoc>();
 
-        return NextResponse.json(toClient(user!), { status: 200 });
+        const needsReplyCount = await EmailAnalysis.countDocuments({ userEmail: email, requires_reply: true });
+        return NextResponse.json(toClient(user!, needsReplyCount), { status: 200 });
     } catch (error) {
         console.error("User GET error:", error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -157,7 +160,8 @@ export async function POST(req: Request) {
             { new: true, upsert: true, runValidators: true },
         ).lean<UserDoc>();
 
-        return NextResponse.json(toClient(user!), { status: 200 });
+        const needsReplyCount = await EmailAnalysis.countDocuments({ userEmail: email, requires_reply: true });
+        return NextResponse.json(toClient(user!, needsReplyCount), { status: 200 });
     } catch (error) {
         console.error("User POST error:", error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

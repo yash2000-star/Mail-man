@@ -268,3 +268,16 @@ export async function listMessageIds(
     const data = await gmailFetch<GmailList>(accessToken, `messages?${params}`);
     return { ids: (data.messages ?? []).map((m) => m.id), nextPageToken: data.nextPageToken ?? null };
 }
+
+/** Fetches full messages, skipping any that no longer exist. */
+export async function getMailMessages(accessToken: string, ids: string[]): Promise<MailMessage[]> {
+    const messages = await mapLimit(ids, CONCURRENCY, async (id) => {
+        try {
+            return await getMailMessage(accessToken, id);
+        } catch (error) {
+            if (error instanceof GmailError && error.status === 404) return null;
+            throw error;
+        }
+    });
+    return messages.filter((m): m is MailMessage => m !== null);
+}

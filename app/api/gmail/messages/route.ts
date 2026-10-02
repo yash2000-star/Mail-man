@@ -12,6 +12,7 @@ const PAGE_SIZE = 25;
  * GET /api/gmail/messages
  *   ?folder=Inbox|Starred|Sent|Draft|All Mail|Archive|Spam|Trash
  *   ?label=<Smart Label name>   (emails the AI tagged with that label)
+ *   ?view=needs-reply           (emails the AI flagged as needing a reply)
  *   &q=<Gmail search>  &pageToken=<from the previous page>
  */
 export async function GET(req: NextRequest) {
@@ -20,16 +21,20 @@ export async function GET(req: NextRequest) {
 
     const params = req.nextUrl.searchParams;
     const label = params.get("label");
+    const view = params.get("view");
     const pageToken = params.get("pageToken") || undefined;
 
     try {
         let page: { ids: string[]; nextPageToken: string | null };
 
-        if (label) {
-            // Smart Labels live in our database, not in Gmail
+        if (label || view === "needs-reply") {
+            // Smart Labels and reply flags live in our database, not in Gmail
             const offset = Math.max(0, Number(pageToken) || 0);
             await dbConnect();
-            const tagged = await EmailAnalysis.find({ userEmail: auth.email, appliedLabels: label })
+            const filter = label
+                ? { userEmail: auth.email, appliedLabels: label }
+                : { userEmail: auth.email, requires_reply: true };
+            const tagged = await EmailAnalysis.find(filter)
                 .sort({ updatedAt: -1 })
                 .skip(offset)
                 .limit(PAGE_SIZE)

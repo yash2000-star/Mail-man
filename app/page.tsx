@@ -14,6 +14,7 @@ import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { AI_PROVIDERS, AiProvider, SavedKeys } from "@/lib/ai-providers";
+import type { LabelColor, SmartLabel } from "@/lib/labels";
 import { isFolder, type MailAnalysis, type MailItem, type MailMessage, type MailPage } from "@/lib/mail-types";
 import {
   Bot, Mail, Menu, ListTodo, Pencil
@@ -51,7 +52,7 @@ export default function Home() {
     to: string;
     subject: string;
     body: string;
-    replyTo?: { threadId: string; messageId: string; references: string };
+    replyTo?: { emailId: string; threadId: string; messageId: string; references: string };
   }>({ to: "", subject: "", body: "" });
   // Paging and search for the current mailbox
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
@@ -59,9 +60,11 @@ export default function Home() {
   const [currentSearch, setCurrentSearch] = useState("");
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isSmartLabelModalOpen, setIsSmartLabelModalOpen] = useState(false);
+  // Smart Label modal: closed (null), creating ("new"), or editing a label
+  const [labelModal, setLabelModal] = useState<"new" | SmartLabel | null>(null);
+  const [needsReplyCount, setNeedsReplyCount] = useState(0);
   const [globalTasks, setGlobalTasks] = useState<any[]>([]);
-  const [customLabels, setCustomLabels] = useState<any[]>([]);
+  const [customLabels, setCustomLabels] = useState<SmartLabel[]>([]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   // Which AI keys the user has saved (the keys themselves stay on the server)
@@ -92,7 +95,9 @@ export default function Home() {
 
   /** Query string for a sidebar entry: a Gmail folder, or one of the user's Smart Labels. */
   const mailboxParams = (mailbox: string, search: string, pageToken?: string | null) => {
-    const params = new URLSearchParams(isFolder(mailbox) ? { folder: mailbox } : { label: mailbox });
+    const params = new URLSearchParams(
+      mailbox === "Needs Reply" ? { view: "needs-reply" } : isFolder(mailbox) ? { folder: mailbox } : { label: mailbox },
+    );
     if (search.trim()) params.set("q", search.trim());
     if (pageToken) params.set("pageToken", pageToken);
     return params;
@@ -246,6 +251,10 @@ export default function Home() {
         }
 
         if (Array.isArray(results)) {
+          // Newly analysed emails that need a reply join the Needs Reply count
+          const sent = new Set(payload.map((e) => e.id));
+          const newlyFlagged = results.filter((r: MailAnalysis & { id: string }) => sent.has(r.id) && r.requires_reply).length;
+          if (newlyFlagged > 0) setNeedsReplyCount((c) => c + newlyFlagged);
           // Immediately show the new summaries (and the instantly returned cached DB summaries)
           updateEmailStateWithAiData(results);
         }
@@ -344,7 +353,7 @@ export default function Home() {
         to: original.fromEmail || original.from,
         subject: `Re: ${baseSubject}`,
         body,
-        replyTo: { threadId: original.threadId, messageId: original.messageId, references: original.references },
+        replyTo: { emailId: original.id, threadId: original.threadId, messageId: original.messageId, references: original.references },
       });
     } else {
       const originalBody = original.bodyIsHtml
@@ -540,28 +549,120 @@ export default function Home() {
   };
 
 
-  // --- NEW: SMART LABEL HANDLERS ---
-  const handleDeleteCustomLabel = async (labelName: string) => {
-    // 1. Remove the label from our array
-    const updatedLabels = customLabels.filter((label) => label.name !== labelName);
-    setCustomLabels(updatedLabels);
+  // --- SMART LABELS ---
 
-    // 2. Sync deletion to MongoDB
+  /** Calls the labels API; returns the updated list, or an error message. */
+  const labelsRequest = async (method: string, body?: object, query = ""): Promise<SmartLabel[] | string> => {
     try {
-      await fetch('/api/user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customLabels: updatedLabels }),
+      const response = await fetch(`/api/labels${query}`, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined,
       });
-    } catch (e) { console.error("Could not sync label deletion", e); }
-
-    // 3. Kick to Inbox if looking at the deleted label
-    if (activeMailbox === labelName) {
-      setActiveMailbox("Inbox");
-      fetchEmails("Inbox");
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return data.error || "Something went wrong. Please try again.";
+      return data.customLabels as SmartLabel[];
+    } catch {
+      return "Could not reach the server. Check your connection.";
     }
   };
-  // -------------------------------------
+
+  /** Renames or removes a label on emails already in memory. */
+  const updateLabelOnEmails = (oldName: string, newName: string | null) => {
+    const swap = (labels?: string[]) =>
+      labels?.flatMap((l) => (l === oldName ? (newName ? [newName] : []) : [l]));
+    setEmails((prev) => prev.map((e) => ({ ...e, appliedLabels: swap(e.appliedLabels) })));
+    setSelectedEmail((prev: any) => (prev ? { ...prev, appliedLabels: swap(prev.appliedLabels) } : prev));
+  };
+
+  /** Applies a label to recent inbox mail, then reloads the label's view if it's open. */
+  const scanLabel = async (name: string) => {
+    if (!hasAiKey) return;
+    const response = await fetch("/api/labels/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      alert(data.error || `Could not apply "${name}" to your recent emails.`);
+      return;
+    }
+    const matched = new Set<string>(data.matched ?? []);
+    setEmails((prev) => prev.map((e) =>
+      matched.has(e.id) && !e.appliedLabels?.includes(name)
+        ? { ...e, appliedLabels: [...(e.appliedLabels ?? []), name] }
+        : e,
+    ));
+    alert(`"${name}" was applied to ${matched.size} of your ${data.scanned} most recent inbox emails.`);
+  };
+
+  const handleSaveLabel = async (label: SmartLabel, { applyRetroactively }: { applyRetroactively: boolean }) => {
+    const editing = labelModal !== "new" && labelModal ? labelModal : null;
+    const result = editing
+      ? await labelsRequest("PATCH", { ...label, originalName: editing.name })
+      : await labelsRequest("POST", label);
+    if (typeof result === "string") return result;
+
+    setCustomLabels(result);
+    const savedName = label.name.trim().replace(/\s+/g, " ");
+    if (editing && editing.name !== savedName) {
+      updateLabelOnEmails(editing.name, savedName);
+      if (activeMailbox === editing.name) setActiveMailbox(savedName);
+    }
+    if (applyRetroactively) scanLabel(savedName);
+    return null;
+  };
+
+  const handleChangeLabelColor = async (label: SmartLabel, color: LabelColor) => {
+    const result = await labelsRequest("PATCH", { ...label, color, originalName: label.name });
+    if (typeof result === "string") alert(result);
+    else setCustomLabels(result);
+  };
+
+  const handleDeleteCustomLabel = async (labelName: string) => {
+    if (!confirm(`Delete the "${labelName}" label? It will be removed from all emails.`)) return;
+    const result = await labelsRequest("DELETE", undefined, `?name=${encodeURIComponent(labelName)}`);
+    if (typeof result === "string") {
+      alert(result);
+      return;
+    }
+    setCustomLabels(result);
+    updateLabelOnEmails(labelName, null);
+    if (activeMailbox === labelName) openMailbox("Inbox");
+  };
+
+  /** Adds or removes a label on one email by hand (optimistic). */
+  const handleToggleLabel = async (emailId: string, name: string, applied: boolean) => {
+    const apply = (labels: string[] = []) => (applied ? [...new Set([...labels, name])] : labels.filter((l) => l !== name));
+    setEmails((prev) => prev.map((e) => (e.id === emailId ? { ...e, appliedLabels: apply(e.appliedLabels) } : e)));
+    setSelectedEmail((prev: any) => (prev?.id === emailId ? { ...prev, appliedLabels: apply(prev.appliedLabels) } : prev));
+    const response = await fetch("/api/labels/assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emailId, name, applied }),
+    }).catch(() => null);
+    if (!response?.ok) alert("Could not update the label. Please try again.");
+  };
+
+  // --- NEEDS REPLY ---
+
+  /** Takes an email off the Needs Reply list (after replying, or by hand). */
+  const handleMarkHandled = async (emailId: string) => {
+    const wasFlagged = emails.find((e) => e.id === emailId)?.requires_reply ?? selectedEmail?.requires_reply;
+    setEmails((prev) =>
+      activeMailbox === "Needs Reply"
+        ? prev.filter((e) => e.id !== emailId)
+        : prev.map((e) => (e.id === emailId ? { ...e, requires_reply: false } : e)),
+    );
+    setSelectedEmail((prev: any) => (prev?.id === emailId ? { ...prev, requires_reply: false } : prev));
+    if (wasFlagged) setNeedsReplyCount((c) => Math.max(0, c - 1));
+    await fetch("/api/analysis/handled", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emailId }),
+    }).catch(() => null);
+  };
 
   const initializationRef = useRef(false);
 
@@ -590,6 +691,7 @@ export default function Home() {
             setSavedKeys(userData.savedKeys);
             setAiProvider(userData.aiProvider);
             if (userData.customLabels) setCustomLabels(userData.customLabels);
+            setNeedsReplyCount(userData.needsReplyCount ?? 0);
             if (userData.globalTasks) setGlobalTasks(userData.globalTasks);
           }
         } catch (e) {
@@ -645,9 +747,12 @@ export default function Home() {
             activeMailbox={activeMailbox}
             onSelectMailbox={openMailbox}
             onOpenSettings={() => setIsSettingsOpen(true)}
-            onOpenSmartLabelModal={() => setIsSmartLabelModalOpen(true)}
+            onOpenSmartLabelModal={() => setLabelModal("new")}
             customLabels={customLabels}
             onDeleteCustomLabel={handleDeleteCustomLabel}
+            onEditCustomLabel={(label) => setLabelModal(label)}
+            onChangeLabelColor={handleChangeLabelColor}
+            needsReplyCount={needsReplyCount}
             unreadCount={activeMailbox === "Inbox" ? emails.filter((e) => e.isUnread).length : 0}
             onClose={() => setIsMobileSidebarOpen(false)}
           />
@@ -711,6 +816,10 @@ export default function Home() {
                 onUpdateEmail={handleUpdateEmail}
                 onAiReply={() => handleAiReply(selectedEmail)}
                 isAiThinking={isAiThinking}
+                customLabels={customLabels}
+                onToggleLabel={handleToggleLabel}
+                onCreateLabel={() => setLabelModal("new")}
+                onMarkHandled={handleMarkHandled}
               />
             </>
           )}
@@ -763,36 +872,18 @@ export default function Home() {
             defaultSubject={draftData.subject}
             defaultBody={draftData.body}
             replyTo={draftData.replyTo}
+            onReplySent={handleMarkHandled}
           />
         )}
 
-        <SmartLabelModal
-          isOpen={isSmartLabelModalOpen}
-          onClose={() => setIsSmartLabelModalOpen(false)}
-          onAddLabel={async (newLabel) => {
-            const updatedLabels = [...customLabels, newLabel];
-            setCustomLabels(updatedLabels);
-
-            try {
-              await fetch('/api/user', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ customLabels: updatedLabels }),
-              });
-
-              if (newLabel.applyRetroactively && hasAiKey && emails.length > 0) {
-                const emailsToProcess = emails.slice(0, 50);
-                alert(`Success! "${newLabel.name}" saved. Mail-man is now retroactively scanning your last 50 emails...`);
-                // Use the existing batch processor to scan the slice
-                extractTasksAndLabelsBatch(emailsToProcess);
-              } else {
-                alert(`Success! "${newLabel.name}" safely stored. Mail-man will now automatically scan new incoming emails.`);
-              }
-            } catch (e) {
-              console.error("Failed to sync new label", e);
-            }
-          }}
-        />
+        {labelModal && (
+          <SmartLabelModal
+            isOpen
+            onClose={() => setLabelModal(null)}
+            initialLabel={labelModal === "new" ? null : labelModal}
+            onSave={handleSaveLabel}
+          />
+        )}
         {/* ─── MOBILE BOTTOM NAVIGATION BAR ─── */}
         <div className="fixed bottom-0 inset-x-0 z-30 md:hidden bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-700 flex items-center justify-around px-2 h-16 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
           <button

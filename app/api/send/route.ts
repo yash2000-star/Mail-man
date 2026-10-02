@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getGmailAuth, gmailFetch } from "@/lib/gmail";
 import { buildRawMessage, MimeError, parseRecipients } from "@/lib/mime";
 import { gmailAuthRequired, gmailErrorResponse } from "@/lib/api-response";
+import dbConnect from "@/lib/mongodb";
+import EmailAnalysis from "@/models/EmailAnalysis";
 
 const MAX_BODY_CHARS = 500_000;
 
 /**
  * POST /api/send
- * { to, cc?, bcc?, subject, message, isHtml?, threadId?, inReplyTo?, references? }
+ * { to, cc?, bcc?, subject, message, isHtml?, threadId?, inReplyTo?, references?, replyToEmailId? }
  */
 export async function POST(req: NextRequest) {
   const auth = await getGmailAuth(req);
@@ -15,7 +17,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { subject = "", message, isHtml, threadId, inReplyTo, references } = body ?? {};
+    const { subject = "", message, isHtml, threadId, inReplyTo, references, replyToEmailId } = body ?? {};
 
     if (typeof subject !== "string" || typeof message !== "string" || message.length > MAX_BODY_CHARS) {
       return NextResponse.json({ error: "Invalid subject or message." }, { status: 400 });
@@ -38,6 +40,11 @@ export async function POST(req: NextRequest) {
       method: "POST",
       body: JSON.stringify({ raw, ...(threadId ? { threadId } : {}) }),
     });
+    // Replying takes the original off the Needs Reply list
+    if (typeof replyToEmailId === "string" && /^[a-zA-Z0-9]+$/.test(replyToEmailId)) {
+      await dbConnect();
+      await EmailAnalysis.updateOne({ emailId: replyToEmailId, userEmail: auth.email }, { $set: { requires_reply: false } });
+    }
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof MimeError) {

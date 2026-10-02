@@ -27,7 +27,9 @@ interface ComposeModalProps {
   defaultSubject?: string;
   defaultBody?: string;
   /** Set when replying, so the message joins the original thread */
-  replyTo?: { threadId: string; messageId: string; references: string };
+  replyTo?: { emailId: string; threadId: string; messageId: string; references: string };
+  /** Called after a reply is sent, with the id of the email replied to */
+  onReplySent?: (emailId: string) => void;
 }
 
 export default function ComposeModal({
@@ -37,6 +39,7 @@ export default function ComposeModal({
   defaultSubject = "",
   defaultBody = "",
   replyTo,
+  onReplySent,
 }: ComposeModalProps) {
   const { data: session } = useSession();
 
@@ -98,6 +101,7 @@ export default function ComposeModal({
             threadId: replyTo.threadId,
             inReplyTo: replyTo.messageId || undefined,
             references: replyTo.references || undefined,
+            replyToEmailId: replyTo.emailId,
           } : {}),
         }),
       });
@@ -108,6 +112,7 @@ export default function ComposeModal({
         return;
       }
 
+      if (replyTo) onReplySent?.(replyTo.emailId);
       setTo("");
       setCc("");
       setBcc("");

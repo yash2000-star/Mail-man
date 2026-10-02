@@ -5,8 +5,9 @@ import { useState } from "react";
 
 import {
   Inbox, ListTodo, Plus, Star, FileText, Send, Archive, AlertCircle, Trash2, MoreHorizontal,
-  Settings, Pencil, Edit2, Check, Mail, ChevronRight, Sparkles, LogOut, X
+  Settings, Pencil, Edit2, Check, Mail, ChevronRight, Sparkles, LogOut, X, Reply
 } from "lucide-react";
+import type { LabelColor, SmartLabel } from "@/lib/labels";
 
 interface SidebarProps {
   isCollapsed?: boolean;
@@ -16,8 +17,11 @@ interface SidebarProps {
   onSelectMailbox: (mailbox: string) => void;
   onOpenSettings?: () => void;
   onOpenSmartLabelModal?: () => void;
-  customLabels?: any[];
+  customLabels?: SmartLabel[];
   onDeleteCustomLabel?: (name: string) => void;
+  onEditCustomLabel?: (label: SmartLabel) => void;
+  onChangeLabelColor?: (label: SmartLabel, color: LabelColor) => void;
+  needsReplyCount?: number;
   unreadCount?: number;
   onClose?: () => void;
 }
@@ -96,6 +100,9 @@ export default function Sidebar({
   onOpenSmartLabelModal,
   customLabels = [],
   onDeleteCustomLabel,
+  onEditCustomLabel,
+  onChangeLabelColor,
+  needsReplyCount = 0,
   isCollapsed = false,
   unreadCount = 0,
   onClose,
@@ -164,6 +171,7 @@ export default function Sidebar({
           <div className="space-y-0.5 relative">
             <NavItem isCollapsed={isCollapsed} icon={<Mail size={19} strokeWidth={1.5} />} label="Inbox" active={activeMailbox === "Inbox"} onClick={() => onSelectMailbox("Inbox")} count={unreadCount > 0 ? unreadCount.toString() : ""} hasChevron={true} />
             <NavItem isCollapsed={isCollapsed} icon={<ListTodo size={19} strokeWidth={1.5} />} label="To-do" active={activeMailbox === "To-do"} onClick={() => onSelectMailbox("To-do")} count="" hasChevron={false} />
+            <NavItem isCollapsed={isCollapsed} icon={<Reply size={19} strokeWidth={1.5} />} label="Needs Reply" active={activeMailbox === "Needs Reply"} onClick={() => onSelectMailbox("Needs Reply")} count={needsReplyCount > 0 ? needsReplyCount.toString() : ""} hasChevron={false} />
 
             {/* --- RENDER CUSTOM LABELS WITH HOVER MENU --- */}
             {customLabels.map((label, idx) => {
@@ -205,7 +213,13 @@ export default function Sidebar({
                       <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} />
                       <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 w-56 bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.2)] rounded-xl overflow-hidden z-[9999] animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex flex-col p-1.5 border-b border-gray-100 dark:border-white/10">
-                          <button className="flex items-center justify-between w-full px-3 py-2 text-sm text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors rounded-lg">
+                          <button
+                            onClick={() => {
+                              onEditCustomLabel?.(label);
+                              setOpenMenuId(null);
+                            }}
+                            className="flex items-center justify-between w-full px-3 py-2 text-sm text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors rounded-lg"
+                          >
                             <span>Edit</span>
                             <Edit2 size={14} className="text-gray-400 dark:text-slate-400" />
                           </button>
@@ -224,6 +238,11 @@ export default function Sidebar({
                           {Object.keys(LABEL_COLORS).map((colorKey) => (
                             <button
                               key={colorKey}
+                              aria-label={`Make ${label.name} ${colorKey}`}
+                              onClick={() => {
+                                onChangeLabelColor?.(label, colorKey as LabelColor);
+                                setOpenMenuId(null);
+                              }}
                               className={`w-4 h-4 rounded-full ${LABEL_COLORS[colorKey]} hover:scale-110 transition-transform flex items-center justify-center ${label.color === colorKey ? 'ring-2 ring-zinc-400 ring-offset-1 ring-offset-zinc-900' : ''}`}
                             >
                               {label.color === colorKey && <Check size={10} className="text-white drop-shadow-md" />}
