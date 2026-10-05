@@ -68,3 +68,36 @@ export interface MailPage {
     /** Pass back as `pageToken` to load the next page; null on the last page */
     nextPageToken: string | null;
 }
+
+/** An email as the browser holds it: a list row, plus the full message and conversation once opened. */
+export interface ClientEmail extends MailItem {
+    body?: string;
+    bodyIsHtml?: boolean;
+    attachments?: MailAttachment[];
+    bcc?: string;
+    messageId?: string;
+    references?: string;
+    /** The whole conversation, oldest first, once loaded */
+    thread?: MailMessage[];
+}
+
+/** AI results for one email, as /api/classify and /api/ai/tasks return them. */
+export interface AnalysisResult extends MailAnalysis {
+    id: string;
+}
+
+/** What /api/gmail/changes reports since the last check. */
+export interface MailChanges {
+    /** Pass back as `since` on the next check */
+    historyId: string;
+    /** Inbox messages that arrived since `since` */
+    newMessageIds: string[];
+    /** The old position was too old to compare against; reload the inbox */
+    reset?: boolean;
+}
+
+/** Things the user can do to an email from the list or the reading pane. */
+export type EmailAction =
+    | "read" | "unread" | "star" | "unstar"
+    | "archive" | "unarchive" | "trash" | "untrash" | "spam" | "notspam"
+    | "reply" | "forward";

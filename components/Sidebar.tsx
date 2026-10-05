@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { useState } from "react";
 
@@ -299,7 +300,7 @@ export default function Sidebar({
             {/* Left Side: Avatar + Name (or just Avatar if collapsed) */}
             <div className={`flex items-center gap-3 overflow-hidden ${isCollapsed ? '' : 'pl-1'}`}>
               {session?.user?.image ? (
-                <img src={session.user.image} alt="User" className="w-8 h-8 min-w-[32px] min-h-[32px] shrink-0 rounded-full object-cover" />
+                <Image src={session.user.image} alt="" width={32} height={32} unoptimized className="w-8 h-8 min-w-[32px] min-h-[32px] shrink-0 rounded-full object-cover" />
               ) : (
                 <div className="w-8 h-8 min-w-[32px] min-h-[32px] shrink-0 rounded-full bg-amber-600 flex items-center justify-center text-white font-semibold text-[14px]">
                   {session?.user?.name?.charAt(0) || "Y"}

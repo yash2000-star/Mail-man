@@ -92,10 +92,14 @@ export default function PrivacyPage() {
         <ul>
           <li>Vercel, which hosts the app;</li>
           <li>MongoDB Atlas, which hosts the database;</li>
+          <li>
+            Sentry, which receives crash reports: the error and where in the code it happened, with cookies,
+            request bodies and personal details removed;
+          </li>
           <li>Google, for sign-in and Gmail;</li>
           <li>the AI provider you choose, as described above.</li>
         </ul>
-        <p>Mail-man has no ads, analytics or tracking scripts, and sets no cookies other than the ones sign-in needs.</p>
+        <p>Mail-man has no ads, analytics or tracking scripts, and sets no cookies other than the ones sign-in needs. Error reports never include the content of your email.</p>
       </section>
 
       <section>

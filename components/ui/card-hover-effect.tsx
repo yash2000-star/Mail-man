@@ -26,11 +26,6 @@ export const HoverEffect = ({
             )}
         >
             {items.map((item, idx) => {
-                // We use a div if no link is provided, else we use Link
-                const CardWrapper = item.link ? Link : "div";
-                const wrapperProps = item.link
-                    ? { href: item.link }
-                    : {};
 
                 return (
                     <div
@@ -56,11 +51,16 @@ export const HoverEffect = ({
                                 />
                             )}
                         </AnimatePresence>
-                        <CardWrapper {...(wrapperProps as any)} className="h-full w-full relative z-20">
-                            <Card>
-                                {item.children}
-                            </Card>
-                        </CardWrapper>
+                        {/* A link when the item has one, else a plain block */}
+                        {item.link ? (
+                            <Link href={item.link} className="h-full w-full relative z-20">
+                                <Card>{item.children}</Card>
+                            </Link>
+                        ) : (
+                            <div className="h-full w-full relative z-20">
+                                <Card>{item.children}</Card>
+                            </div>
+                        )}
                     </div>
                 );
             })}

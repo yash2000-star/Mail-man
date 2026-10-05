@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "@/lib/toast";
 import { useSession } from "next-auth/react";
+import type ReactQuillType from "react-quill-new";
 import dynamic from "next/dynamic";
 import "react-quill-new/dist/quill.snow.css";
 
@@ -18,7 +19,7 @@ const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
 const AUTOSAVE_DELAY_MS = 2500;
 
 // import Quill dynamically so Next.js doesn't crash on the server
-const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false }) as any;
+const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false }) as unknown as typeof ReactQuillType;
 
 const LANGUAGES = [
   "English", "Chinese", "Japanese", "French", "Italian", "German",
@@ -95,8 +96,8 @@ export default function ComposeModal({
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState("");
   const [isEnhancing, setIsEnhancing] = useState(false);
-  const quillRef = useRef<any>(null);
-  const [activeFormats, setActiveFormats] = useState<any>({});
+  const quillRef = useRef<ReactQuillType>(null);
+  const [activeFormats, setActiveFormats] = useState<Record<string, unknown>>({});
 
   useEffect(() => {
     setTo(defaultTo);
@@ -244,9 +245,9 @@ export default function ComposeModal({
       if (data.enhancedText) {
         setMessage(data.enhancedText);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("AI Enhance failed:", error);
-      toast(`AI failed to enhance the message: ${error.message}`, "error");
+      toast(`AI failed to enhance the message: ${error instanceof Error ? error.message : "please try again."}`, "error");
     } finally {
       setIsEnhancing(false);
     }

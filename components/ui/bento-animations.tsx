@@ -126,7 +126,7 @@ export const MultiModelHubAnimation = () => {
             setActiveNode((prev) => (prev + 1) % nodes.length);
         }, 3000); // 3 seconds per node cycle
         return () => clearInterval(timer);
-    }, []);
+    }, [nodes.length]);
 
     return (
         <div className="relative flex-1 flex mt-2 md:mt-4 h-[120px] w-full items-center pl-2 pr-4">

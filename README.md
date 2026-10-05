@@ -11,6 +11,7 @@ An AI-powered Gmail client. Mail-man signs you in with Google, reads your inbox,
 - **Smart Labels**: describe a label in plain English and the AI applies it to new mail, and optionally to your recent inbox.
 - **To-dos**: action items and deadlines pulled from your mail into a dashboard grouped by overdue, today and upcoming; add your own or turn any email into a to-do.
 - **Full mail client**: conversations, every Gmail folder, search, paging, drafts with autosave, attachments, reply and forward with the original quoted.
+- **Live updates**: new mail appears on its own (Gmail history API, checked every 30 seconds while the tab is open), with the unread count in the browser tab.
 - **Compose assistant**: rewrite a draft in a chosen tone or language, or write one from a short instruction.
 - **Inbox chat**: ask questions about your recent mail.
 - **Bring your own key, any provider**: every AI feature works with a Google Gemini, OpenAI or Anthropic Claude key. Keys are encrypted (AES-256-GCM) in MongoDB and only used server-side; the browser never sees them.
@@ -43,13 +44,14 @@ app/
     ai/reply/         Reply drafting
     ai/enhance/       Compose assistant
     chat/             Inbox chat (Gemini / OpenAI / Anthropic)
-    gmail/            Mailbox lists, messages, conversations, attachments
+    gmail/            Mailbox lists, messages, conversations, attachments, live changes
     action/           Gmail label changes (archive, trash, star, read)
     send/, drafts/    Send email and save drafts through Gmail
     labels/           Smart Labels: create, edit, delete, scan, assign
     tasks/            To-do list
     user/             User settings and AI keys; DELETE removes all of a user's data
 components/           UI components (MailApp, feed, reading pane, compose, sidebar, chat, ...)
+hooks/                Client state: mailbox, AI analysis, to-dos, Smart Labels, live new mail
 lib/                  Gmail, MIME, AI provider layer, auth, encryption, env helpers
 lib/demo/             Sample mailbox and in-browser API used by /demo
 models/               Mongoose models: User, EmailAnalysis
@@ -97,6 +99,16 @@ While the app is in Google's *Testing* mode, only accounts listed as test users 
 3. Add every variable from `.env.example` in **Project Settings > Environment Variables**, with `NEXTAUTH_URL` set to your production URL.
 4. Add the production redirect URI to the Google OAuth client (step 3 above) and deploy.
 
+### Error monitoring (optional)
+
+Mail-man reports crashes to [Sentry](https://sentry.io) when `NEXT_PUBLIC_SENTRY_DSN` is set; without it, nothing is sent.
+
+1. Create a free Sentry account and a **Next.js** project.
+2. Copy the project's DSN (**Project Settings > Client Keys**) into `NEXT_PUBLIC_SENTRY_DSN` in Vercel and redeploy.
+3. Optional: for readable stack traces, also set `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and `SENTRY_PROJECT`.
+
+Reports go through the app's own `/monitoring` route, skip performance tracing and session replay, and have cookies, request bodies and personal details removed (`lib/sentry-options.ts`). Sentry emails you when a new error appears.
+
 ## Scripts
 
 | Command | What it does |
@@ -106,9 +118,10 @@ While the app is in Google's *Testing* mode, only accounts listed as test users 
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript type-check |
-| `npm test` | Unit tests (Vitest): encryption, rate limiting, MIME building, validation, demo API |
+| `npm test` | Unit tests (Vitest): encryption, rate limiting, MIME, compose helpers, validation, live-mail route, demo API |
+| `npm run test:e2e` | Browser tests (Playwright) against a production build, using the demo inbox; run `npm run build` first |
 
-CI runs lint, type-check, tests and build on every pull request and every push to `main`.
+CI runs lint (zero warnings allowed), type-check, unit tests, build and browser tests on every pull request and every push to `main`.
 
 ## Security
 

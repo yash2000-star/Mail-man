@@ -1,11 +1,13 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
+import Link from "next/link";
 
 /** Shown when a page crashes, instead of a blank screen. */
 export default function ErrorPage({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    console.error(error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (
@@ -19,9 +21,9 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
         <button onClick={reset} className="px-5 py-2.5 rounded-full bg-amber-500 hover:bg-amber-400 text-black text-sm font-bold transition">
           Try again
         </button>
-        <button onClick={() => window.location.assign("/")} className="px-5 py-2.5 rounded-full border border-zinc-700 hover:border-zinc-500 text-zinc-200 text-sm font-bold transition">
+        <Link href="/" className="px-5 py-2.5 rounded-full border border-zinc-700 hover:border-zinc-500 text-zinc-200 text-sm font-bold transition">
           Go home
-        </button>
+        </Link>
       </div>
     </main>
   );

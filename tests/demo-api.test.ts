@@ -62,3 +62,22 @@ describe("demo API", () => {
     expect((await call("DELETE", "/api/user")).status).toBe(403);
   });
 }, 20_000);
+
+describe("demo new mail", () => {
+  it("delivers one new inbox email after the delay", async () => {
+    const handle = createDemoApi(createDemoState(), { newMailAfterMs: 0 });
+    const call = async (url: string) => {
+      const u = new URL(url, "http://localhost");
+      const res = await handle({ method: "GET", path: u.pathname, query: u.searchParams, body: {} });
+      return res!.json();
+    };
+    const first = await call("/api/gmail/changes");
+    expect(first.newMessageIds).toEqual([]);
+    const second = await call(`/api/gmail/changes?since=${first.historyId}`);
+    expect(second.newMessageIds).toHaveLength(1);
+    const third = await call(`/api/gmail/changes?since=${second.historyId}`);
+    expect(third.newMessageIds).toEqual([]);
+    const inbox = await call("/api/gmail/messages?folder=Inbox");
+    expect(inbox.emails[0].id).toBe(second.newMessageIds[0]);
+  }, 10_000);
+});

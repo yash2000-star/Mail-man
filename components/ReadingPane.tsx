@@ -5,10 +5,10 @@ import { toast } from "@/lib/toast";
 import {
   ChevronsRight, Reply, Forward, Tag, Star, Archive,
   Trash2, MoreHorizontal, Sparkles, RefreshCw,
-  ListTodo, AlertCircle, Mail, Plus, Check, Paperclip
+  ListTodo, AlertCircle, Mail, Plus, Paperclip
 } from "lucide-react";
 import EmailBodyFrame from "./EmailBodyFrame";
-import type { MailAttachment, MailMessage } from "@/lib/mail-types";
+import type { ClientEmail, EmailAction, MailAttachment, MailMessage } from "@/lib/mail-types";
 import ThreadView from "./ThreadView";
 import type { SmartLabel } from "@/lib/labels";
 
@@ -16,12 +16,9 @@ const formatSize = (bytes: number) =>
   bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
 interface ReadingPaneProps {
-  selectedEmail: any | null;
-  getBadgeStyle: (category: string) => string;
+  selectedEmail: ClientEmail | null;
   onBack: () => void;
-  onOpenAi?: () => void;
-  onAction?: (id: string, action: string) => void;
-  onUpdateEmail?: (id: string, updates: any) => void;
+  onAction?: (id: string, action: EmailAction) => void;
   onAiReply?: () => void;
   isAiThinking?: boolean;
   customLabels?: SmartLabel[];
@@ -33,7 +30,7 @@ interface ReadingPaneProps {
   /** Reply to or forward one message of a conversation */
   onReplyToMessage?: (message: MailMessage, mode: "reply" | "forward") => void;
   /** Adds a to-do linked to this email */
-  onCreateTask?: (email: MailMessage) => void;
+  onCreateTask?: (email: ClientEmail) => void;
   /** The AI summary is on its way (the inbox is being analysed) */
   summaryPending?: boolean;
 }
@@ -54,11 +51,8 @@ function formatReceived(email: { timestamp?: number; date?: string }): string {
 
 export default function ReadingPane({
   selectedEmail,
-  getBadgeStyle,
   onBack,
-  onOpenAi,
   onAction,
-  onUpdateEmail,
   onAiReply,
   isAiThinking,
   customLabels = [],
@@ -125,7 +119,7 @@ export default function ReadingPane({
       {selectedEmail && (
         <>
           {/* --- TOP TOOLBAR --- */}
-          <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-zinc-800/60 bg-zinc-950/90 backdrop-blur-md w-full gap-2 transition-shadow">
+          <div role="toolbar" aria-label="Email actions" className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-zinc-800/60 bg-zinc-950/90 backdrop-blur-md w-full gap-2 transition-shadow">
             <div className="flex items-center gap-3 flex-1 min-w-0 pr-2 py-1 pl-2">
               <button
                 onClick={onBack}
@@ -137,7 +131,7 @@ export default function ReadingPane({
 
               <div className="flex items-center h-10 bg-zinc-900 rounded-full px-1.5 border border-zinc-800/60 shadow-xl overflow-hidden">
                 <button
-                  onClick={() => onAction && onAction(selectedEmail.id, "reply")}
+                  onClick={() => onAction?.(selectedEmail.id, "reply")}
                   className="w-9 h-full flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition"
                   title="Reply"
                 >
@@ -145,7 +139,7 @@ export default function ReadingPane({
                 </button>
                 <div className="w-px h-5 bg-zinc-800 mx-1" />
                 <button
-                  onClick={() => onAction && onAction(selectedEmail.id, "forward")}
+                  onClick={() => onAction?.(selectedEmail.id, "forward")}
                   className="w-9 h-full flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition"
                   title="Forward"
                 >
@@ -206,7 +200,7 @@ export default function ReadingPane({
                 </div>
                 <div className="w-px h-5 bg-zinc-800 mx-1" />
                 <button
-                  onClick={() => onAction && onAction(selectedEmail.id, selectedEmail.isStarred ? 'unstar' : 'star')}
+                  onClick={() => onAction?.(selectedEmail.id, selectedEmail.isStarred ? 'unstar' : 'star')}
                   className={`w-9 h-full flex items-center justify-center transition hover:bg-zinc-800 ${selectedEmail.isStarred ? 'text-amber-500 bg-amber-500/10' : 'text-zinc-400 hover:text-zinc-100'}`}
                   title={selectedEmail.isStarred ? "Unstar" : "Star"}
                 >
@@ -214,7 +208,7 @@ export default function ReadingPane({
                 </button>
                 <div className="w-px h-5 bg-zinc-800 mx-1" />
                 <button
-                  onClick={() => onAction && onAction(selectedEmail.id, 'archive')}
+                  onClick={() => onAction?.(selectedEmail.id, 'archive')}
                   className="w-9 h-full flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition"
                   title="Archive"
                 >
@@ -222,7 +216,7 @@ export default function ReadingPane({
                 </button>
                 <div className="w-px h-5 bg-zinc-800 mx-1" />
                 <button
-                  onClick={() => onAction && onAction(selectedEmail.id, 'trash')}
+                  onClick={() => onAction?.(selectedEmail.id, 'trash')}
                   className="w-9 h-full flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition"
                   title="Delete"
                 >
@@ -248,12 +242,12 @@ export default function ReadingPane({
                           <ListTodo size={16} strokeWidth={1.5} className="text-zinc-500" />
                         </button>
                         <div className="h-px bg-zinc-800 w-full my-1"></div>
-                        <button onClick={() => { onAction && onAction(selectedEmail.id, "spam"); setIsMoreMenuOpen(false); }} className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
+                        <button onClick={() => { onAction?.(selectedEmail.id, "spam"); setIsMoreMenuOpen(false); }} className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
                           <span>Spam</span>
                           <AlertCircle size={16} strokeWidth={1.5} className="text-zinc-500" />
                         </button>
                         <div className="h-px bg-zinc-800 w-full my-1"></div>
-                        <button onClick={() => { onAction && onAction(selectedEmail.id, "unread"); setIsMoreMenuOpen(false); }} className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
+                        <button onClick={() => { onAction?.(selectedEmail.id, "unread"); setIsMoreMenuOpen(false); }} className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition">
                           <span>Mark as Unread</span>
                           <Mail size={16} strokeWidth={1.5} className="text-zinc-500" />
                         </button>
@@ -316,14 +310,14 @@ export default function ReadingPane({
                   <span className="text-xs text-zinc-500 font-medium tracking-tight whitespace-nowrap">{formatReceived(selectedEmail)}</span>
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => onAction && onAction(selectedEmail.id, "reply")}
+                      onClick={() => onAction?.(selectedEmail.id, "reply")}
                       className="text-zinc-500 hover:text-zinc-100 transition hover:bg-zinc-800 p-2 rounded-full"
                       title="Reply"
                     >
                       <Reply size={18} strokeWidth={1.5} />
                     </button>
                     <button
-                      onClick={() => onAction && onAction(selectedEmail.id, "forward")}
+                      onClick={() => onAction?.(selectedEmail.id, "forward")}
                       className="text-zinc-500 hover:text-zinc-100 transition hover:bg-zinc-800 p-2 rounded-full"
                       title="Forward"
                     >
@@ -378,7 +372,7 @@ export default function ReadingPane({
                         Done
                       </button>
                       <button
-                        onClick={() => navigator.clipboard.writeText(selectedEmail.draft_reply)}
+                        onClick={() => navigator.clipboard.writeText(selectedEmail.draft_reply ?? "")}
                         className="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700 text-[11px] font-black uppercase tracking-widest py-2 px-4 rounded-full transition shadow-xl"
                       >
                         Copy
@@ -405,7 +399,7 @@ export default function ReadingPane({
 
             {/* Actual Email Body (Full Width Edge-to-Edge) */}
             <div className="w-full bg-white min-h-full py-12 px-8 md:px-12">
-              {selectedEmail.thread?.length > 1 ? (
+              {selectedEmail.thread && selectedEmail.thread.length > 1 ? (
                 <ThreadView
                   key={selectedEmail.threadId}
                   messages={selectedEmail.thread}
@@ -430,7 +424,7 @@ export default function ReadingPane({
                 )}
               </div>
 
-              {selectedEmail.attachments?.length > 0 && (
+              {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
                 <div className="max-w-4xl mx-auto mt-10 pt-6 border-t border-zinc-200">
                   <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-3">
                     {selectedEmail.attachments.length} attachment{selectedEmail.attachments.length > 1 ? "s" : ""}
@@ -457,13 +451,13 @@ export default function ReadingPane({
             {/* Bottom Action Pills (Centered) */}
             <div className="max-w-4xl mx-auto px-8 md:px-12 py-12 flex gap-4">
               <button
-                onClick={() => onAction && onAction(selectedEmail.id, "reply")}
+                onClick={() => onAction?.(selectedEmail.id, "reply")}
                 className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 rounded-full px-6 py-2 transition-colors text-sm font-bold shadow-xl"
               >
                 <Reply size={18} strokeWidth={2} className="text-zinc-500" /> Reply
               </button>
               <button
-                onClick={() => onAction && onAction(selectedEmail.id, "forward")}
+                onClick={() => onAction?.(selectedEmail.id, "forward")}
                 className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 rounded-full px-6 py-2 transition-colors text-sm font-bold shadow-xl"
               >
                 <Forward size={18} strokeWidth={2} className="text-zinc-500" /> Forward

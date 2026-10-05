@@ -6,11 +6,13 @@ import { getEnv } from './env';
  * in development. This prevents connections growing exponentially
  * during API Route usage.
  */
-let cached = (global as any).mongoose;
-
-if (!cached) {
-    cached = (global as any).mongoose = { conn: null, promise: null };
+interface MongooseCache {
+    conn: typeof mongoose | null;
+    promise: Promise<typeof mongoose> | null;
 }
+
+const globalWithCache = global as typeof globalThis & { mongoose?: MongooseCache };
+const cached: MongooseCache = globalWithCache.mongoose ?? (globalWithCache.mongoose = { conn: null, promise: null });
 
 async function dbConnect() {
     if (cached.conn) {
