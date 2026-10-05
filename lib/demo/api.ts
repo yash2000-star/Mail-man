@@ -60,7 +60,40 @@ function textOf(m: MailMessage): string {
     return (m.bodyIsHtml ? m.body.replace(/<[^>]+>/g, " ") : m.body).replace(/\s+/g, " ");
 }
 
-export function createDemoApi(state: DemoState) {
+/** How long after the demo opens a "new" email arrives, to show live updates. */
+export const DEMO_NEW_MAIL_AFTER_MS = 20_000;
+
+export function createDemoApi(state: DemoState, { newMailAfterMs = DEMO_NEW_MAIL_AFTER_MS } = {}) {
+    const startedAt = Date.now();
+    let historyId = 1000;
+    let newMailDelivered = false;
+
+    /** Stand-in for /api/gmail/changes: one new email arrives a little after the demo opens. */
+    const changes = (since: string | null) => {
+        if (since && !newMailDelivered && Date.now() - startedAt >= newMailAfterMs) {
+            newMailDelivered = true;
+            historyId++;
+            const message = newDemoMessage({
+                id: "m2001",
+                threadId: "t20",
+                from: ["Lumen Labs IT", "it@lumenlabs.example"],
+                subject: "Your new laptop is ready for pickup",
+                body: "Hi Alex,\n\nYour replacement laptop is set up and ready. Pick it up from the IT desk on floor 3 any time before Friday, and bring your old one so we can wipe it.\n\nLumen Labs IT",
+                labels: ["INBOX", "UNREAD"],
+            });
+            state.messages.push(message);
+            state.analysis.t20 = {
+                category: "Important",
+                summary: "Your replacement laptop is ready at the floor 3 IT desk; pick it up before Friday and bring the old one.",
+                requires_reply: false,
+                draft_reply: "",
+                appliedLabels: ["Work"],
+            };
+            return { historyId: String(historyId), newMessageIds: [message.id] };
+        }
+        return { historyId: String(historyId), newMessageIds: [] as string[] };
+    };
+
     const byId = (id: string) => state.messages.find((m) => m.id === id);
     const threadOf = (threadId: string) =>
         state.messages.filter((m) => m.threadId === threadId).sort((a, b) => a.timestamp - b.timestamp);
@@ -298,6 +331,7 @@ export function createDemoApi(state: DemoState) {
         "DELETE /api/user": () => error("The demo doesn't store anything, so there's nothing to delete.", 403),
 
         "GET /api/gmail/messages": (r) => json(listMessages(r.query)),
+        "GET /api/gmail/changes": (r) => json(changes(r.query.get("since"))),
         "POST /api/action": (r) => {
             const change = ACTIONS[String(r.body.action)];
             const targets = typeof r.body.threadId === "string"

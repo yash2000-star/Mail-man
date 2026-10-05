@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { Key, Check, ShieldAlert, ArrowRight } from "lucide-react";
 import { AI_PROVIDERS, AiProvider, PROVIDER_KEY_INFO, PROVIDER_LABELS } from "@/lib/ai-providers";
-import type { MailItem, MailPage } from "@/lib/mail-types";
+import type { AnalysisResult, MailItem, MailPage } from "@/lib/mail-types";
 
 const KEY_FIELD: Record<AiProvider, string> = {
     gemini: "geminiApiKey",
@@ -116,7 +116,7 @@ export default function SetupPage() {
                     const classifyData = await classifyRes.json();
                     if (Array.isArray(classifyData)) {
                         preloadedEmails = preloadedEmails.map((email) => {
-                            const match = classifyData.find((r: any) => r.id === email.id);
+                            const match = (classifyData as AnalysisResult[]).find((r) => r.id === email.id);
                             return match ? { ...email, ...match } : email;
                         });
                     }
@@ -135,11 +135,11 @@ export default function SetupPage() {
             setTimeout(() => {
                 router.replace("/");
             }, 1000);
-        } catch (err: any) {
+        } catch (err) {
             console.error("Setup failed:", err);
             if (cycleRef.current) clearInterval(cycleRef.current);
             setPhase("input");
-            setError(err.message || "Something went wrong. Please try again.");
+            setError((err instanceof Error && err.message) || "Something went wrong. Please try again.");
         }
     };
 

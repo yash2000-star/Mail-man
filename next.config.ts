@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -40,4 +41,14 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  // Uploads readable stack traces only when SENTRY_AUTH_TOKEN is set (e.g. in Vercel)
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+  // Browser reports go through this app's own domain, so the CSP and ad blockers don't drop them
+  tunnelRoute: "/monitoring",
+  silent: !process.env.CI,
+  telemetry: false,
+});

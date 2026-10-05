@@ -3,19 +3,21 @@
 import { useState } from "react";
 import {
   Search, RefreshCw, SlidersHorizontal, ListFilter, Sparkles, Archive, Trash2, Mail, Star, Coffee,
-  MailOpen, Tag, PanelLeftClose, PanelLeftOpen
+  MailOpen, PanelLeftClose, PanelLeftOpen
 } from "lucide-react";
+import type { ClientEmail, EmailAction } from "@/lib/mail-types";
+import type { SmartLabel } from "@/lib/labels";
 
 interface EmailFeedProps {
-  emails: any[];
-  onSelect: (email: any) => void;
-  selectedEmail: any;
+  emails: ClientEmail[];
+  onSelect: (email: ClientEmail) => void;
+  selectedEmail: ClientEmail | null;
   onRefresh: () => void;
   isSyncing: boolean;
-  onAction: (id: string, action: string) => void;
+  onAction: (id: string, action: EmailAction) => void;
   onSearch: (query: string) => void;
   onOpenAi: () => void;
-  customLabels?: any[];
+  customLabels?: SmartLabel[];
   onToggleSidebar?: () => void;
   isSidebarCollapsed?: boolean;
   /** Paging: another page of this mailbox can be loaded */
@@ -122,7 +124,7 @@ export default function EmailFeed({
       matchesTab = email.category?.toLowerCase() === "promotions";
     } else if (activeTab !== "All") {
       // NEW: IT MUST BE A CUSTOM SMART LABEL!
-      matchesTab = email.appliedLabels && email.appliedLabels.includes(activeTab);
+      matchesTab = Boolean(email.appliedLabels?.includes(activeTab));
     }
 
     let matchesAdvanced = true;
@@ -469,7 +471,7 @@ export default function EmailFeed({
         ) : (
 
           /* --- THE NORMAL EMAIL LIST --- */
-          filteredEmails.map((email: any, index: number) => {
+          filteredEmails.map((email, index) => {
             const isSelected = selectedEmail?.id === email.id;
             const senderName = email.from.split("<")[0].replace(/"/g, "").trim();
 
@@ -528,7 +530,7 @@ export default function EmailFeed({
                       <div className="flex justify-between items-baseline">
                         <h3 className={`text-sm truncate pr-2 ${isSelected ? "text-zinc-50 font-bold" : (email.isUnread ? "text-zinc-50 font-bold" : "text-zinc-400 font-semibold")}`}>
                           {senderName}
-                          {email.messageCount > 1 && (
+                          {(email.messageCount ?? 0) > 1 && (
                             <span className="ml-1.5 text-xs font-medium text-zinc-500" aria-label={`${email.messageCount} messages`}>{email.messageCount}</span>
                           )}
                         </h3>
@@ -563,12 +565,6 @@ export default function EmailFeed({
 
                     {/* Hover Actions - Pushes from the right side instead of overlaying purely */}
                     <div className="hidden group-hover:flex items-center gap-2 pl-4 shrink-0 relative z-10">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onAction(email.id, "tag"); }}
-                        className="p-1.5 text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800 rounded-full transition" title="Tag"
-                      >
-                        <Tag size={18} strokeWidth={2} />
-                      </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onAction(email.id, email.isStarred ? "unstar" : "star"); }}
                         className={`p-1.5 rounded-full transition ${email.isStarred ? "text-amber-500 hover:bg-amber-500/10" : "text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800"}`} title={email.isStarred ? "Unstar" : "Star"}

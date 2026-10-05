@@ -4,11 +4,12 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { PenLine, Search, ClipboardList, Clock, LayoutPanelLeft, X, ArrowUp } from "lucide-react";
 import { AiProvider, PROVIDER_LABELS } from "@/lib/ai-providers";
+import type { MailItem } from "@/lib/mail-types";
 
 interface AiChatProps {
   isOpen: boolean;
   onClose: () => void;
-  emails: any[];
+  emails: Pick<MailItem, "from" | "subject" | "snippet" | "date">[];
   /** Providers the user has a saved key for. */
   availableProviders: AiProvider[];
   defaultProvider: AiProvider | null;
@@ -87,8 +88,9 @@ export default function AiChat({ isOpen, onClose, emails, availableProviders, de
       if (data.error) throw new Error(data.error);
 
       setMessages((prev) => [...prev, { role: "ai", content: data.reply }]);
-    } catch (error: any) {
-      setMessages((prev) => [...prev, { role: "ai", content: `Error: ${error.message || "Could not reach the AI. Please try again."}` }]);
+    } catch (error) {
+      const message = error instanceof Error && error.message ? error.message : "Could not reach the AI. Please try again.";
+      setMessages((prev) => [...prev, { role: "ai", content: `Error: ${message}` }]);
     } finally {
       setIsLoading(false);
     }
